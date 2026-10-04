@@ -43,4 +43,6 @@ export const authOptions: AuthOptions = {
   pages: {
     signIn: "/",
   },
+  // NextAuth v4 refuses to start without a secret — surface a clear fix in logs.
+  secret: process.env.NEXTAUTH_SECRET,
 };

@@ -33,7 +33,7 @@ export const PROJECT = {
   discordInvite: "https://discord.gg/UVRWygSpJq",
   /** OAuth URL used to add the bot to a server. */
   botInviteUrl:
-    "https://discord.com/oauth2/authorize?client_id=1396114795102470196&permissions=8&integration_type=0&scope=bot+applications.commands",
+    "https://discord.com/oauth2/authorize?client_id=1487525013576749106&permissions=8&integration_type=0&scope=bot+applications.commands",
   /** Internal documentation route. */
   docsUrl: "/docs",
   /** Creator goals shown on the About page. */

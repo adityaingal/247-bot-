@@ -105,8 +105,8 @@ class Extraowner(commands.Cog):
         if ctx.guild.member_count < 2:
             return await ctx.send(view=CV2(f"{CROSS} Error", "Your Server Doesn't Meet My 30 Member Criteria"))
 
-        Ray = OWNER_IDS_STR
-        if ctx.author.id != ctx.guild.owner_id and str(ctx.author.id) not in Ray:
+        bot_owners = OWNER_IDS_STR
+        if ctx.author.id != ctx.guild.owner_id and str(ctx.author.id) not in bot_owners:
             return await ctx.send(view=CV2(f"{ZWARNING} Access Denied", "Only Server Owner Can Run This Command"))
 
         if option is None:

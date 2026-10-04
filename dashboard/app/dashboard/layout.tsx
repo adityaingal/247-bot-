@@ -20,10 +20,10 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Server, ShieldCheck, Ticket, BarChart4, FileText, Settings,
   Menu, X, Bell, User, Search, ChevronRight, Star, Sparkles, LogOut,
-  LifeBuoy, ChevronDown, Bot, Shield
+  LifeBuoy, ChevronDown, Bot, Shield, Copy, Check
 } from "lucide-react";
 import { useSession, signIn, signOut } from "next-auth/react";
-import { cn, isAdmin } from "@/lib/utils";
+import { cn, isAdmin, isDev } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { PROJECT } from "@/lib/project";
 import { AdminConfig } from "@/types/api";
@@ -39,6 +39,8 @@ export default function DashboardLayout({
   const { data: session, status } = useSession();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [globalNotification, setGlobalNotification] = useState<string | null>(null);
+  const [adminConfig, setAdminConfig] = useState<AdminConfig | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
   
   const bellRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -75,6 +77,7 @@ export default function DashboardLayout({
       try {
         const config = await api.getAdminConfig();
         setGlobalNotification(config.global_notification);
+        setAdminConfig(config);
       } catch (err) {
         console.error("Failed to fetch notifications:", err);
       }
@@ -98,6 +101,25 @@ export default function DashboardLayout({
   }
 
   const match = pathname.match(/\/dashboard\/guild\/([^\/]+)/);
+
+  // Discord user ID from the OAuth session (identify scope)
+  const userId = (session?.user as any)?.id as string | undefined;
+
+  const copyUserId = async () => {
+    if (!userId) return;
+    try {
+      await navigator.clipboard.writeText(userId);
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 1500);
+    } catch {
+      /* clipboard blocked — ignore */
+    }
+  };
+
+  // Dev always sees the panel; others only if the dev (or env) granted access
+  const canOpenAdmin = (id?: string | null) =>
+    !!id &&
+    (isDev(id) || isAdmin(id) || (adminConfig?.admin_ids || []).includes(id));
   const currentGuildId = match ? match[1] : null;
 
   // Base sidebar items – will be filtered if we are inside a guild
@@ -141,8 +163,8 @@ export default function DashboardLayout({
     : [
         { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
         { name: "Servers", href: "/dashboard/guilds", icon: Server },
-        ...(isAdmin(session?.user?.id) 
-            ? [{ name: "Admin Panel", href: "/dashboard/admin", icon: Shield }] 
+        ...(canOpenAdmin(session?.user?.id)
+            ? [{ name: "Admin Panel", href: "/dashboard/admin", icon: Shield }]
             : []),
       ];
 
@@ -369,7 +391,7 @@ export default function DashboardLayout({
                 {session?.user?.name || "Administrator"}
               </p>
               <p className="text-[10px] font-black uppercase text-red-500/60 truncate tracking-widest">
-                User
+                {userId ? `ID ${userId}` : "User"}
               </p>
             </div>
           </div>
@@ -397,6 +419,15 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-6">
+            <a
+              href={PROJECT.botInviteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 hover:border-red-500/40 text-[10px] font-black uppercase tracking-widest transition-all"
+            >
+              <Bot className="h-4 w-4" />
+              Add to Server
+            </a>
             <div className="relative" ref={bellRef}>
               <button 
                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
@@ -473,7 +504,32 @@ export default function DashboardLayout({
                     <div className="px-4 py-3 border-b border-white/5 mb-2">
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Authenticated As</p>
                       <p className="text-sm font-bold text-white truncate">{session?.user?.name || "Administrator"}</p>
+                      <button
+                        onClick={copyUserId}
+                        disabled={!userId}
+                        title="Copy Discord ID"
+                        className="mt-2 w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 hover:border-red-500/30 hover:bg-red-500/5 transition-all group/id disabled:opacity-50"
+                      >
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover/id:text-slate-300 transition-colors truncate">
+                          {userId ? `ID: ${userId}` : "Discord ID"}
+                        </span>
+                        {copiedId ? (
+                          <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" />
+                        ) : (
+                          <Copy className="h-3 w-3 text-slate-600 group-hover/id:text-red-400 flex-shrink-0 transition-colors" />
+                        )}
+                      </button>
                     </div>
+
+                    <a
+                      href={PROJECT.botInviteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-red-500 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-all group/add mb-1"
+                    >
+                      <Bot className="h-4 w-4 text-red-500 group-hover/add:scale-110 transition-transform" />
+                      Add Bot to Server
+                    </a>
 
                     <a
                       href={PROJECT.discordInvite}

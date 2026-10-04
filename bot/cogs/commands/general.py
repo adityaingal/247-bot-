@@ -35,7 +35,7 @@ import sqlite3
 from typing import *
 import string
 from utils.cv2 import CV2, build_container
-from utils.config import CREATOR_NAME
+from utils.config import CREATOR_NAME, BOT_INVITE_URL, dev_credit
 
 lawda = [
   '8', '3821', '23', '21', '313', '43', '29', '76', '11', '9',
@@ -391,8 +391,9 @@ class General(commands.Cog):
       invite_text = (
           "```Empower your server with blazing-fast features and 24/7 support!```\n"
           f"{ZYROXLINKS} **Quick Actions**\n"
-          f">>> **[Invite {BotName}](https://discord.com/oauth2/authorize?client_id=1396114795102470196&permissions=8&integration_type=0&scope=bot+applications.commands)**\n"
+          f">>> **[Invite {BotName}]({BOT_INVITE_URL})**\n"
           "**[Support Server](https://discord.gg/UVRWygSpJq)**\n"
+          f"**Developer** {dev_credit()}\n"
           f"**Created by** {CREATOR_NAME}"
       )
       await ctx.send(view=CV2(f"{ZYROXCONNECTION} {BotName} Integration Hub!", invite_text))

@@ -11,7 +11,7 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 from utils import getConfig
-from utils.config import BotName
+from utils.config import BotName, CREATOR_NAME, creator_credit, DEV_NAME, dev_credit, BOT_INVITE_URL
 import discord
 from utils.emoji import ARROWRED, CODEBASE, HEART3, INDEX, ZYROXLINKS
 from discord.ui import LayoutView, TextDisplay, Separator, Container, ActionRow, Select
@@ -79,13 +79,14 @@ class MentionSelectView(LayoutView):
             )
         elif selected == "Developer Info":
             content = (
-                "There are only 2 Founders Who Created Me. Thanks You To Them 💞.\n\n"
-                "**The Founder**\n"
-                "**[01]. [Ray](https://discord.com/users/870179991462236170)**\n**[02]. [runxking](https://discord.com/users/767979794411028491)**"
+                f"Made by **{DEV_NAME}** 💞.\n\n"
+                "**The Developer**\n"
+                f"**[01]. {dev_credit()}**\n\n"
+                f"**[Invite {BotName}]({BOT_INVITE_URL})**"
             )
         elif selected == "Links":
             content = (
-                f"**[Invite {BotName}](https://discord.com/oauth2/authorize?client_id=1396114795102470196)**\n"
+                f"**[Invite {BotName}]({BOT_INVITE_URL})**\n"
                 "**[Join Support Server](https://discord.gg/UVRWygSpJq)**"
             )
 

@@ -72,10 +72,10 @@ def create_stats_content(stats_data, selected):
             f"Slash Commands: **{stats_data['slash_cmds']}**"
         ),
         "Team Info": (
-            "There is only one person who made me. Thanks to him ❤️.\n\n"
-            f"**{ZYROX_OWNER} Main Owner**\n"
-            "[01]. [runxking](https://discord.com/users/767979794411028491)\n"
-            "[02]. [Ray](https://discord.com/users/870179991462236170)"
+            f"Made by **{DEV_NAME}** ❤️.\n\n"
+            f"**{ZYROX_OWNER} Developer**\n"
+            f"[01]. {dev_credit()}\n\n"
+            f"**[Invite {BotName}]({BOT_INVITE_URL})**"
         ),
         "Code Info": (
             f"**{ZYROX_SEARCH} Codebase Overview**\n\n"

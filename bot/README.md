@@ -179,7 +179,7 @@ TOKEN              = your_discord_bot_token
 brand_name         = 'Support Web'
 
 # ── Owner IDs (comma-separated — no code changes needed) ──────────
-OWNER_IDS          = 870179991462236170,767979794411028491
+OWNER_IDS          = 1365657651823771719,1466133502939365437
 
 # ── Lavalink ──────────────────────────────────────────────────────
 LAVALINK_HOST      = "your-lavalink-host"

@@ -48,7 +48,7 @@ class BlacklistWordSource(menus.ListPageSource):
 
         embed.set_footer(
             text='Users having Administrator can use Blacklisted Word',
-            icon_url="https://cdn.discordapp.com/avatars/1396114795102470196/198b9bc616ec574f6fd2f7121a1d3abc.webp?size=4096"
+            icon_url="https://cdn.discordapp.com/avatars/1487525013576749106/198b9bc616ec574f6fd2f7121a1d3abc.webp?size=4096"
         )
         return embed
 

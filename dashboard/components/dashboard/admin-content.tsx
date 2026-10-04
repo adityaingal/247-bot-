@@ -15,21 +15,29 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { 
-  Shield, Users, Server, Activity, Database, Cpu, Globe, Lock, Settings, RefreshCw
+  Shield, Users, Server, Activity, Database, Cpu, Globe, Lock, Settings, RefreshCw,
+  UserPlus, X, KeyRound
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isDev } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { AdminStats, AdminConfig } from "@/types/api";
 import { toast } from "sonner";
 
 export function AdminContent() {
+  const { data: session } = useSession();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [config, setConfig] = useState<AdminConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState("");
+  const [newAdminId, setNewAdminId] = useState("");
+  const [accessSaving, setAccessSaving] = useState(false);
+
+  const myId = (session?.user as any)?.id as string | undefined;
+  const canManageAccess = isDev(myId);
 
   const fetchData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -82,6 +90,41 @@ export function AdminContent() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const persistAccess = async (ids: string[]) => {
+    if (!myId) return;
+    setAccessSaving(true);
+    try {
+      await api.updateAdminConfig({ admin_ids: ids, dev_id: myId });
+      setConfig(config ? { ...config, admin_ids: ids } : config);
+      toast.success("Dashboard access updated");
+      return true;
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update access");
+      return false;
+    } finally {
+      setAccessSaving(false);
+    }
+  };
+
+  const handleGrant = async () => {
+    const id = newAdminId.trim();
+    if (!/^\d{15,22}$/.test(id)) {
+      toast.error("Enter a valid Discord user ID (15-22 digits)");
+      return;
+    }
+    const current = config?.admin_ids || [];
+    if (current.includes(id) || (process.env.NEXT_PUBLIC_DEV_IDS || "").split(",").includes(id)) {
+      toast.info("That user already has access");
+      return;
+    }
+    if (await persistAccess([...current, id])) setNewAdminId("");
+  };
+
+  const handleRevoke = async (id: string) => {
+    const current = (config?.admin_ids || []).filter((x) => x !== id);
+    if (await persistAccess(current)) toast.success(`Access revoked for ${id}`);
   };
 
   if (loading) {
@@ -239,6 +282,96 @@ export function AdminContent() {
           </div>
         </div>
       </div>
+
+      {/* Access Control — dev grants/revokes dashboard access for anyone */}
+      {canManageAccess && (
+        <div className="glass border border-white/5 rounded-[2.5rem] overflow-hidden">
+          <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
+            <div className="flex items-center gap-4">
+              <KeyRound className="h-5 w-5 text-emerald-500" />
+              <h3 className="text-lg font-bold text-white">Access Control</h3>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20">
+              Dev Only
+            </span>
+          </div>
+
+          <div className="p-8 space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 pl-1">
+                Dev (always has access)
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {(process.env.NEXT_PUBLIC_DEV_IDS || "1466133502939365437")
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .map((id) => (
+                    <span
+                      key={id}
+                      className="px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-[11px] font-black text-red-400 tracking-wider"
+                    >
+                      {id}
+                    </span>
+                  ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 pl-1">
+                Granted Users ({(config?.admin_ids || []).length})
+              </label>
+              {(config?.admin_ids || []).length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {(config?.admin_ids || []).map((id) => (
+                    <span
+                      key={id}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/10 text-[11px] font-black text-slate-300 tracking-wider"
+                    >
+                      {id}
+                      <button
+                        onClick={() => handleRevoke(id)}
+                        disabled={accessSaving}
+                        title="Revoke access"
+                        className="text-slate-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs font-medium text-slate-500">
+                  No one else has access yet — only you (the dev) can open the panel.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                value={newAdminId}
+                onChange={(e) => setNewAdminId(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleGrant()}
+                placeholder="Discord user ID to grant access"
+                className="flex-1 bg-white/[0.03] border border-white/5 rounded-2xl px-4 py-3.5 text-xs font-bold text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all placeholder:text-slate-600"
+              />
+              <button
+                onClick={handleGrant}
+                disabled={accessSaving || !newAdminId.trim()}
+                className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 text-[11px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+              >
+                <UserPlus className="h-4 w-4" />
+                {accessSaving ? "Saving..." : "Grant Access"}
+              </button>
+            </div>
+
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              Revoked users are hidden from the panel with a 404. Grants are stored on the
+              bot API and only the dev can change them.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

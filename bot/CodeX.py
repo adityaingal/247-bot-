@@ -79,6 +79,26 @@ async def update_stats():
         
         await asyncio.sleep(600) # Update every 10 minutes
 
+# --- Keep-Alive (stops Render/web hosts from sleeping the service) ---
+KEEPALIVE_URL = os.getenv("KEEPALIVE_URL", "").strip()
+KEEPALIVE_INTERVAL = int(os.getenv("KEEPALIVE_INTERVAL", "600") or "600")
+
+async def keep_awake():
+    """Ping KEEPALIVE_URL so the host never idles the process (bot stays online)."""
+    await client.wait_until_ready()
+    if not KEEPALIVE_URL:
+        return
+    print(f"\033[36m↑ KeepAlive: pinging {KEEPALIVE_URL} every {KEEPALIVE_INTERVAL}s\033[0m")
+    timeout = aiohttp.ClientTimeout(total=20)
+    while not client.is_closed():
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(KEEPALIVE_URL) as resp:
+                    print(f"\033[36m↑ KeepAlive: {resp.status} {KEEPALIVE_URL}\033[0m")
+        except Exception as e:
+            print(f"\033[33m↑ KeepAlive: ping failed ({e})\033[0m")
+        await asyncio.sleep(KEEPALIVE_INTERVAL)
+
 # --- Event Handlers ---
 @client.event
 async def on_ready():
@@ -99,8 +119,11 @@ async def on_ready():
     print(f"Connected to: {len(client.guilds)} guilds")
     print(f"Connected to: {len(client.users)} users")
 
-    # Sync application emojis on startup
-    await run_sync(TOKEN)
+    # Sync application emojis on startup (never let this kill on_ready)
+    try:
+        await run_sync(TOKEN)
+    except Exception as e:
+        print(f"Emoji sync skipped/failed: {e}")
 
     async def sync_commands():
         try:
@@ -112,6 +135,8 @@ async def on_ready():
 
     client.loop.create_task(sync_commands())
     client.loop.create_task(update_stats())
+    if not any(t.get_name() == "keep_awake" for t in asyncio.all_tasks()):
+        client.loop.create_task(keep_awake(), name="keep_awake")
 
 
 @client.event
@@ -129,7 +154,10 @@ async def on_command_completion(context: commands.Context) -> None:
     full_command_name = context.command.qualified_name
     split = full_command_name.split("\n")
     executed_command = str(split[0])
-    webhook_url = CMD_WEBHOOK_URL
+    webhook_url = (CMD_WEBHOOK_URL or "").strip()
+    # Skip when no real webhook is configured — a placeholder URL would raise on every command
+    if not webhook_url or not webhook_url.rstrip("/").split("/")[-1].isdigit():
+        return
     async with aiohttp.ClientSession() as session:
         webhook = discord.Webhook.from_url(webhook_url, session=session)
 
@@ -340,22 +368,34 @@ start_tunnel()
 async def main():
     async with client:
         os.system("clear")
-        await client.load_extension("jishaku")
-        
-        max_retries = 5
-        for attempt in range(max_retries):
+        try:
+            await client.load_extension("jishaku")
+        except Exception as e:
+            print(f"jishaku load failed (continuing without it): {e}")
+
+        attempt = 0
+        while attempt < 20:
             try:
                 await client.start(TOKEN)
-                break
+                return
+            except discord.LoginFailure:
+                print("\033[31m✖ Invalid TOKEN — fix the TOKEN env var and restart.\033[0m")
+                return
             except discord.HTTPException as e:
-                if e.status == 429: # Rate limited
+                if e.status == 429:  # Rate limited
                     wait_time = min((2 ** attempt) + random.random(), 60)
-                    print(f"Rate limited. Retrying in {wait_time:.2f} seconds...")
+                    print(f"Rate limited. Retrying in {wait_time:.1f} seconds...")
                     await asyncio.sleep(wait_time)
-                else:
-                    raise
-        else:
-            raise Exception("Bot failed to start after multiple retries due to rate limiting.")
+                    attempt += 1
+                    continue
+                print(f"HTTP error while starting bot: {e} — retrying in 30s")
+                await asyncio.sleep(30)
+                attempt += 1
+            except (discord.GatewayNotFound, aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
+                print(f"Connection error while starting bot: {e} — retrying in 30s")
+                await asyncio.sleep(30)
+                attempt += 1
+        raise Exception("Bot failed to start after multiple retries.")
 
 if __name__ == "__main__":
     asyncio.run(main())

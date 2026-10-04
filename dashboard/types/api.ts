@@ -269,9 +269,12 @@ export interface AdminStats {
 export interface AdminConfig {
   maintenance_mode: boolean;
   global_notification: string | null;
+  admin_ids?: string[];
 }
 
 export interface AdminConfigUpdate {
   maintenance_mode?: boolean;
   global_notification?: string | null;
+  admin_ids?: string[];
+  dev_id?: string;
 }

@@ -11,6 +11,10 @@ services:
         value: "true"
       - key: brand_name
         value: Support
+      - key: CREATOR_NAME
+        value: OGADI
+      - key: CREATOR_ID
+        sync: false
       - key: SUPPORT_SERVER_URL
         value: https://discord.gg/UVRWygSpJq
       - key: DISCORD_STATUS
@@ -19,6 +23,10 @@ services:
         value: Support | >help
       - key: TUNNEL_ENABLED
         value: "false"
+      - key: KEEPALIVE_URL
+        value: https://support-web-api.onrender.com/health
+      - key: KEEPALIVE_INTERVAL
+        value: "600"
       - key: TOKEN
         sync: false
       - key: DASHBOARD_API_KEY
@@ -57,6 +65,8 @@ services:
         sync: false
       - key: NEXT_PUBLIC_ADMIN_IDS
         sync: false
+      - key: NEXT_PUBLIC_DEV_IDS
+        value: "1466133502939365437"
       - key: NEXT_PUBLIC_BRAND_NAME
         value: Support
       - key: NEXT_PUBLIC_BRAND_NAME_WORD

@@ -338,7 +338,10 @@ class AdminStats(BaseModel):
 class AdminConfig(BaseModel):
     maintenance_mode: bool
     global_notification: Optional[str] = None
+    admin_ids: List[str] = []
 
 class AdminConfigUpdate(BaseModel):
     maintenance_mode: Optional[bool] = None
     global_notification: Optional[str] = None
+    admin_ids: Optional[List[str]] = None
+    dev_id: Optional[str] = None

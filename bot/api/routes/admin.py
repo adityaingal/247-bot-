@@ -30,10 +30,14 @@ async def init_db():
         # Default values
         await db.execute("INSERT OR IGNORE INTO config (key, value) VALUES ('maintenance_mode', 'false')")
         await db.execute("INSERT OR IGNORE INTO config (key, value) VALUES ('global_notification', '')")
+        await db.execute("INSERT OR IGNORE INTO config (key, value) VALUES ('admin_ids', '')")
         await db.commit()
 
 import psutil
 import time
+
+def _split_ids(raw: str) -> List[str]:
+    return [i.strip() for i in (raw or "").split(",") if i.strip()]
 
 @router.get("/stats", response_model=AdminStats)
 async def get_admin_stats(bot: "zyrox" = Depends(get_bot)):
@@ -108,19 +112,32 @@ async def get_admin_config():
             mm = await cursor.fetchone()
         async with db.execute("SELECT value FROM config WHERE key = 'global_notification'") as cursor:
             gn = await cursor.fetchone()
+        async with db.execute("SELECT value FROM config WHERE key = 'admin_ids'") as cursor:
+            ai = await cursor.fetchone()
             
     return AdminConfig(
         maintenance_mode=mm[0].lower() == 'true' if mm else False,
-        global_notification=gn[0] if gn else None
+        global_notification=gn[0] if gn else None,
+        admin_ids=_split_ids(ai[0] if ai else "")
     )
 
 @router.patch("/config")
 async def patch_admin_config(data: AdminConfigUpdate):
+    from utils.config import OWNER_IDS_STR
     await init_db()
     async with aiosqlite.connect(CONFIG_DB) as db:
         if data.maintenance_mode is not None:
             await db.execute("UPDATE config SET value = ? WHERE key = 'maintenance_mode'", (str(data.maintenance_mode).lower(),))
         if data.global_notification is not None:
             await db.execute("UPDATE config SET value = ? WHERE key = 'global_notification'", (data.global_notification,))
+        if data.admin_ids is not None:
+            # Only a bot owner/dev may grant or revoke dashboard access
+            if not data.dev_id or str(data.dev_id).strip() not in OWNER_IDS_STR:
+                raise HTTPException(status_code=403, detail="Only the dev can change dashboard access.")
+            cleaned = [str(i).strip() for i in data.admin_ids if str(i).strip().isdigit()]
+            await db.execute(
+                "UPDATE config SET value = ? WHERE key = 'admin_ids'",
+                (",".join(dict.fromkeys(cleaned)),),
+            )
         await db.commit()
     return {"status": "success"}
