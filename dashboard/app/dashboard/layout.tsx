@@ -5,11 +5,9 @@
  * ║   ░█░░░█░█░█░█░█▀▀░▄▀▄   ░█░█░█▀▀░▀▄▀░▀▀█                     ║
  * ║   ░▀▀▀░▀▀▀░▀▀░░▀▀▀░▀░▀   ░▀▀░░▀▀▀░░▀░░▀▀▀                     ║
  * ║                                                                  ║
- * ║           © 2026 CodeX Devs — All Rights Reserved               ║
+ * ║           © 2026 OGADI — All Rights Reserved                     ║
  * ║                                                                  ║
- * ║   discord  ──  https://discord.gg/codexdev                      ║
- * ║   youtube  ──  https://youtube.com/@CodeXDevs                   ║
- * ║   github   ──  https://github.com/RayExo                        ║
+ * ║   discord  ──  https://discord.gg/UVRWygSpJq                    ║
  * ║                                                                  ║
  * ╚══════════════════════════════════════════════════════════════════╝
  */
@@ -27,6 +25,7 @@ import {
 import { useSession, signIn, signOut } from "next-auth/react";
 import { cn, isAdmin } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { PROJECT } from "@/lib/project";
 import { AdminConfig } from "@/types/api";
 
 export default function DashboardLayout({
@@ -88,7 +87,7 @@ export default function DashboardLayout({
       <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
         <div className="animate-pulse flex flex-col items-center gap-4">
           <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-            <span className="font-black text-white italic text-xl">{process.env.NEXT_PUBLIC_BRAND_NAME_WORD || "ZX"}</span>
+            <span className="font-black text-white italic text-xl">{process.env.NEXT_PUBLIC_BRAND_NAME_WORD || PROJECT.nameWord}</span>
           </div>
           <p className="text-slate-400 font-bold tracking-widest uppercase text-xs">
             Authenticating...
@@ -191,7 +190,7 @@ export default function DashboardLayout({
             </div>
             <div className="flex flex-col">
               <h1 className="text-lg font-bold tracking-tight text-white font-outfit leading-none">
-                {process.env.NEXT_PUBLIC_BRAND_NAME || "Support Web"}
+                {PROJECT.name}
               </h1>
               <span className="text-[9px] font-black uppercase tracking-[0.2em] text-red-500/80 mt-1">
                 Dashboard
@@ -308,6 +307,48 @@ export default function DashboardLayout({
             </Link>
           </div>
         )}
+
+        {/* Community & Project Links */}
+        <div className="px-4 pt-3 pb-1 flex-shrink-0 border-t border-white/5">
+          <p className="px-4 pt-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600 mb-2">
+            Community
+          </p>
+          <div className="space-y-1">
+            <Link
+              href="/about"
+              className={cn(
+                "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 group text-[13px] font-bold",
+                pathname === "/about"
+                  ? "bg-red-500/10 text-red-500 border border-red-500/20"
+                  : "text-slate-400 hover:bg-white/[0.03] hover:text-slate-200"
+              )}
+            >
+              <User className="h-4 w-4 text-slate-600 group-hover:text-slate-400" />
+              About the Creator
+            </Link>
+            <a
+              href={PROJECT.discordInvite}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 group text-[13px] font-bold text-slate-400 hover:bg-white/[0.03] hover:text-slate-200"
+            >
+              <LifeBuoy className="h-4 w-4 text-slate-600 group-hover:text-slate-400" />
+              Join our Discord
+            </a>
+            <Link
+              href="/docs"
+              className={cn(
+                "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 group text-[13px] font-bold",
+                pathname === "/docs"
+                  ? "bg-red-500/10 text-red-500 border border-red-500/20"
+                  : "text-slate-400 hover:bg-white/[0.03] hover:text-slate-200"
+              )}
+            >
+              <FileText className="h-4 w-4 text-slate-600 group-hover:text-slate-400" />
+              Help &amp; Documentation
+            </Link>
+          </div>
+        </div>
 
         {/* User Profile - now a normal flex child, no absolute positioning */}
         <div className="flex-shrink-0 p-4 border-t border-white/5 glass-red bg-red-500/[0.02]">
@@ -434,10 +475,24 @@ export default function DashboardLayout({
                       <p className="text-sm font-bold text-white truncate">{session?.user?.name || "Administrator"}</p>
                     </div>
 
-                    <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-slate-400 hover:bg-white/5 hover:text-white transition-all group/item">
+                    <a
+                      href={PROJECT.discordInvite}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-slate-400 hover:bg-white/5 hover:text-white transition-all group/item"
+                    >
                       <LifeBuoy className="h-4 w-4 text-slate-600 group-hover/item:text-red-500 transition-colors" />
                       Support Matrix
-                    </button>
+                    </a>
+
+                    <Link
+                      href="/about"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-slate-400 hover:bg-white/5 hover:text-white transition-all group/item"
+                    >
+                      <User className="h-4 w-4 text-slate-600 group-hover/item:text-red-500 transition-colors" />
+                      About the Creator
+                    </Link>
 
                     <button
                       onClick={() => signOut({ callbackUrl: '/' })}

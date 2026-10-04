@@ -4,11 +4,9 @@
 # ║   ░█░░░█░█░█░█░█▀▀░▄▀▄   ░█░█░█▀▀░▀▄▀░▀▀█                     ║
 # ║   ░▀▀▀░▀▀▀░▀▀░░▀▀▀░▀░▀   ░▀▀░░▀▀▀░░▀░░▀▀▀                     ║
 # ║                                                                  ║
-# ║            © 2026 CodeX Devs — All Rights Reserved              ║
+# ║            © 2026 OGADI — All Rights Reserved                    ║
 # ║                                                                  ║
-# ║   discord  ──  https://discord.gg/codexdev                      ║
-# ║   youtube  ──  https://youtube.com/@CodeXDevs                   ║
-# ║   github   ──  https://github.com/RayExo                        ║
+# ║   discord  ──  https://discord.gg/UVRWygSpJq                    ║
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
@@ -37,6 +35,7 @@ import sqlite3
 from typing import *
 import string
 from utils.cv2 import CV2, build_container
+from utils.config import CREATOR_NAME
 
 lawda = [
   '8', '3821', '23', '21', '313', '43', '29', '76', '11', '9',
@@ -393,6 +392,7 @@ class General(commands.Cog):
           "```Empower your server with blazing-fast features and 24/7 support!```\n"
           f"{ZYROXLINKS} **Quick Actions**\n"
           f">>> **[Invite {BotName}](https://discord.com/oauth2/authorize?client_id=1396114795102470196&permissions=8&integration_type=0&scope=bot+applications.commands)**\n"
-          "**[Support Server](https://discord.gg/UVRWygSpJq)**"
+          "**[Support Server](https://discord.gg/UVRWygSpJq)**\n"
+          f"**Created by** {CREATOR_NAME}"
       )
       await ctx.send(view=CV2(f"{ZYROXCONNECTION} {BotName} Integration Hub!", invite_text))

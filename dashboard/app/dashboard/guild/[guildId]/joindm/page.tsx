@@ -5,11 +5,9 @@
  * ║   ░█░░░█░█░█░█░█▀▀░▄▀▄   ░█░█░█▀▀░▀▄▀░▀▀█                     ║
  * ║   ░▀▀▀░▀▀▀░▀▀░░▀▀▀░▀░▀   ░▀▀░░▀▀▀░░▀░░▀▀▀                     ║
  * ║                                                                  ║
- * ║           © 2026 CodeX Devs — All Rights Reserved               ║
+ * ║           © 2026 OGADI — All Rights Reserved                     ║
  * ║                                                                  ║
- * ║   discord  ──  https://discord.gg/codexdev                      ║
- * ║   youtube  ──  https://youtube.com/@CodeXDevs                   ║
- * ║   github   ──  https://github.com/RayExo                        ║
+ * ║   discord  ──  https://discord.gg/UVRWygSpJq                    ║
  * ║                                                                  ║
  * ╚══════════════════════════════════════════════════════════════════╝
  */

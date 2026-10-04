@@ -5,11 +5,9 @@
  * ║   ░█░░░█░█░█░█░█▀▀░▄▀▄   ░█░█░█▀▀░▀▄▀░▀▀█                     ║
  * ║   ░▀▀▀░▀▀▀░▀▀░░▀▀▀░▀░▀   ░▀▀░░▀▀▀░░▀░░▀▀▀                     ║
  * ║                                                                  ║
- * ║           © 2026 CodeX Devs — All Rights Reserved               ║
+ * ║           © 2026 OGADI — All Rights Reserved                     ║
  * ║                                                                  ║
- * ║   discord  ──  https://discord.gg/codexdev                      ║
- * ║   youtube  ──  https://youtube.com/@CodeXDevs                   ║
- * ║   github   ──  https://github.com/RayExo                        ║
+ * ║   discord  ──  https://discord.gg/UVRWygSpJq                    ║
  * ║                                                                  ║
  * ╚══════════════════════════════════════════════════════════════════╝
  */
@@ -46,6 +44,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PROJECT } from "@/lib/project";
 
 export default function LandingPage() {
   return (
@@ -64,7 +63,7 @@ export default function LandingPage() {
               <Bot className="h-6 w-6 text-white" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-lg font-bold tracking-tight text-white font-outfit leading-none">{process.env.NEXT_PUBLIC_BRAND_NAME || "Support Web"}</h1>
+              <h1 className="text-lg font-bold tracking-tight text-white font-outfit leading-none">{PROJECT.name}</h1>
               <span className="text-[9px] font-black uppercase tracking-[0.2em] text-red-500/80 mt-1">Dashboard</span>
             </div>
           </div>
@@ -74,6 +73,9 @@ export default function LandingPage() {
             <Link href="#architecture" className="hover:text-red-500 transition-colors">Architecture</Link>
             <Link href="#modules" className="hover:text-red-500 transition-colors">Modules</Link>
             <Link href="#network" className="hover:text-red-500 transition-colors">Network</Link>
+            <Link href="/docs" className="hover:text-red-500 transition-colors">Docs</Link>
+            <Link href="/about" className="hover:text-red-500 transition-colors">About</Link>
+            <a href={PROJECT.discordInvite} target="_blank" rel="noopener noreferrer" className="hover:text-red-500 transition-colors">Community</a>
           </div>
 
           <div className="flex items-center gap-4">
@@ -117,10 +119,18 @@ export default function LandingPage() {
               <LayoutDashboard className="h-6 w-6 group-hover:rotate-12 transition-transform" />
               Open Dashboard
             </Button>
-            <Button variant="outline" className="w-full sm:w-auto rounded-2xl px-14 py-9 text-lg font-bold border-white/5 bg-white/[0.02] backdrop-blur-3xl hover:bg-white/[0.05] gap-3 text-white transition-all">
-              Add to Server
-              <ChevronRight className="h-5 w-5 opacity-40 group-hover:translate-x-1 transition-transform" />
-            </Button>
+            <a href={PROJECT.botInviteUrl} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full sm:w-auto rounded-2xl px-14 py-9 text-lg font-bold border-white/5 bg-white/[0.02] backdrop-blur-3xl hover:bg-white/[0.05] gap-3 text-white transition-all hover:scale-105">
+                Add to Server
+                <ChevronRight className="h-5 w-5 opacity-40 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </a>
+            <a href={PROJECT.discordInvite} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full sm:w-auto rounded-2xl px-14 py-9 text-lg font-bold border-white/5 bg-white/[0.02] backdrop-blur-3xl hover:bg-white/[0.05] gap-3 text-white transition-all hover:scale-105">
+                Join Discord
+                <ChevronRight className="h-5 w-5 opacity-40 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </a>
           </div>
         </div>
 
@@ -413,18 +423,22 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-20 mb-32">
             <div className="col-span-1 md:col-span-2 space-y-12">
               <div className="flex items-center gap-4 group">
-                <span className="text-3xl font-bold text-white font-outfit uppercase tracking-tighter">{process.env.NEXT_PUBLIC_BRAND_NAME || "Support Web"} Engine</span>
+                <span className="text-3xl font-bold text-white font-outfit uppercase tracking-tighter">{PROJECT.name} Engine</span>
               </div>
               <p className="text-slate-600 max-w-sm font-bold leading-relaxed uppercase text-xs tracking-widest">
-                The high-performance Discord engine for communities that demand excellence. Open-source, secure, and infinitely scalable.
+                The high-performance Discord engine for communities that demand excellence. Secure, reliable, and infinitely scalable.
               </p>
+              <div className="flex items-center gap-3">
+                <a href={PROJECT.discordInvite} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 h-10 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest transition-colors">
+                  Join our Discord
+                </a>
+              </div>
             </div>
             <div className="space-y-8">
                <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white opacity-40">System</h4>
                <ul className="space-y-5 text-[11px] font-black uppercase tracking-widest text-slate-500">
-                  <li><Link href="#" className="hover:text-red-500 transition-colors">GitHub Repository</Link></li>
                   <li><Link href="/docs" className="hover:text-red-500 transition-colors">Documentation</Link></li>
-                  <li><Link href="#" className="hover:text-red-500 transition-colors">API References</Link></li>
+                  <li><Link href="/about" className="hover:text-red-500 transition-colors">About the Creator</Link></li>
                </ul>
             </div>
             <div className="space-y-8">
@@ -432,13 +446,13 @@ export default function LandingPage() {
                <ul className="space-y-5 text-[11px] font-black uppercase tracking-widest text-slate-500">
                   <li><Link href="/privacy" className="hover:text-red-500 transition-colors">Privacy Shield</Link></li>
                   <li><Link href="/terms" className="hover:text-red-500 transition-colors">Terms of Service</Link></li>
-                  <li><Link href="#" className="hover:text-red-500 transition-colors">Discord Server</Link></li>
+                  <li><a href={PROJECT.discordInvite} target="_blank" rel="noopener noreferrer" className="hover:text-red-500 transition-colors">Discord Server</a></li>
                </ul>
             </div>
           </div>
           <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-6 opacity-40">
             <p className="text-slate-700 text-[10px] font-black uppercase tracking-[0.4em]">
-              © 2026 {process.env.NEXT_PUBLIC_BRAND_NAME || "Support Web"} Development // Advanced Neural Infrastructure.
+              © 2026 {PROJECT.name} Development // Created by {PROJECT.creator}.
             </p>
             <div className="flex items-center gap-8">
                <div className="flex items-center gap-3 text-[10px] font-black text-red-500 uppercase tracking-[0.3em]">

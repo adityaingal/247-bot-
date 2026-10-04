@@ -5,11 +5,9 @@
  * ║   ░█░░░█░█░█░█░█▀▀░▄▀▄   ░█░█░█▀▀░▀▄▀░▀▀█                     ║
  * ║   ░▀▀▀░▀▀▀░▀▀░░▀▀▀░▀░▀   ░▀▀░░▀▀▀░░▀░░▀▀▀                     ║
  * ║                                                                  ║
- * ║           © 2026 CodeX Devs — All Rights Reserved               ║
+ * ║           © 2026 OGADI — All Rights Reserved                     ║
  * ║                                                                  ║
- * ║   discord  ──  https://discord.gg/codexdev                      ║
- * ║   youtube  ──  https://youtube.com/@CodeXDevs                   ║
- * ║   github   ──  https://github.com/RayExo                        ║
+ * ║   discord  ──  https://discord.gg/UVRWygSpJq                    ║
  * ║                                                                  ║
  * ╚══════════════════════════════════════════════════════════════════╝
  */
@@ -27,6 +25,8 @@ import {
   FileText
 } from "lucide-react";
 import { api } from "@/lib/api";
+import Link from "next/link";
+import { PROJECT } from "@/lib/project";
 
 export default async function DashboardPage() {
   let botInfo;
@@ -110,11 +110,16 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
             {[
               { title: "Manage Servers", desc: "View and configure your Discord guilds.", icon: ServerIcon, href: "/dashboard/guilds" },
-              { title: "Global Settings", desc: "Adjust your personal dashboard preferences.", icon: Settings, href: "/dashboard" },
-              { title: "Support Matrix", desc: "Get help from our neural support team.", icon: LifeBuoy, href: "#" },
-              { title: "Documentation", desc: "Learn how to master the Support Web engine.", icon: FileText, href: "#" },
+              { title: "Support Matrix", desc: "Join the community for help and support.", icon: LifeBuoy, href: PROJECT.discordInvite, external: true },
+              { title: "Documentation", desc: "Learn how to master the Support engine.", icon: FileText, href: "/docs" },
+              { title: "About the Creator", desc: `Meet the creator behind ${PROJECT.name}.`, icon: Settings, href: "/about" },
             ].map((item) => (
-              <a key={item.title} href={item.href} className="flex items-center gap-5 p-4 rounded-2xl bg-white/[0.02] border border-white/[0.03] group/item hover:bg-white/[0.05] hover:border-red-500/20 transition-all">
+              <a
+                key={item.title}
+                href={item.href}
+                {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                className="flex items-center gap-5 p-4 rounded-2xl bg-white/[0.02] border border-white/[0.03] group/item hover:bg-white/[0.05] hover:border-red-500/20 transition-all"
+              >
                 <div className="h-12 w-12 rounded-2xl bg-red-500/5 border border-red-500/10 flex items-center justify-center group-hover/item:bg-red-500/10 transition-colors">
                    <item.icon className="h-5 w-5 text-red-500/60 group-hover/item:text-red-500 transition-colors" />
                 </div>
@@ -151,9 +156,12 @@ export default async function DashboardPage() {
             </div>
           </div>
           
-          <button className="mt-12 w-full py-4 glass-red hover:bg-red-500/10 text-red-500 rounded-[20px] text-[11px] font-black uppercase tracking-[0.2em] transition-all border border-red-500/20 relative z-10">
-            System Diagnostics
-          </button>
+          <Link
+            href="/about"
+            className="mt-12 block w-full py-4 glass-red hover:bg-red-500/10 text-red-500 rounded-[20px] text-[11px] font-black uppercase tracking-[0.2em] transition-all border border-red-500/20 relative z-10 text-center"
+          >
+            About the Creator
+          </Link>
           {/* Abstract Design Element */}
           <div className="absolute -bottom-10 -right-10 h-32 w-32 bg-red-500/10 blur-3xl rounded-full" />
         </div>

@@ -5,11 +5,9 @@
  * ║   ░█░░░█░█░█░█░█▀▀░▄▀▄   ░█░█░█▀▀░▀▄▀░▀▀█                     ║
  * ║   ░▀▀▀░▀▀▀░▀▀░░▀▀▀░▀░▀   ░▀▀░░▀▀▀░░▀░░▀▀▀                     ║
  * ║                                                                  ║
- * ║           © 2026 CodeX Devs — All Rights Reserved               ║
+ * ║           © 2026 OGADI — All Rights Reserved                     ║
  * ║                                                                  ║
- * ║   discord  ──  https://discord.gg/codexdev                      ║
- * ║   youtube  ──  https://youtube.com/@CodeXDevs                   ║
- * ║   github   ──  https://github.com/RayExo                        ║
+ * ║   discord  ──  https://discord.gg/UVRWygSpJq                    ║
  * ║                                                                  ║
  * ╚══════════════════════════════════════════════════════════════════╝
  */
@@ -20,6 +18,7 @@ import React, { useState } from "react";
 import { ShieldCheck, RefreshCcw, Save, Hash, Settings, User } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { PROJECT } from "@/lib/project";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -202,7 +201,7 @@ export function VerificationForm({ initialConfig, channels, roles, guildId }: Ve
           </div>
           <h3 className="text-sm font-bold text-primary mb-2">How It Works</h3>
           <p className="text-xs text-slate-400 leading-relaxed mb-4">
-            Zyrox Verification ensures that no unauthorized bots or malicious users enter your server unverified.
+            {PROJECT.name} Verification ensures that no unauthorized bots or malicious users enter your server unverified.
           </p>
           <ul className="text-xs text-slate-500 space-y-2">
              <li>• The bot will create a panel in your Verification Channel.</li>

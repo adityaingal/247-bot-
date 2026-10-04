@@ -22,8 +22,6 @@
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-red?style=for-the-badge"/></a>
   <a href="https://discord.gg/UVRWygSpJq"><img src="https://img.shields.io/badge/Discord-Join_Server-5865F2?style=for-the-badge&logo=discord&logoColor=white"/></a>
-  <a href="https://youtube.com/@CodeXDevs"><img src="https://img.shields.io/badge/YouTube-CodeXDevs-FF0000?style=for-the-badge&logo=youtube&logoColor=white"/></a>
-  <a href="https://github.com/RayExo"><img src="https://img.shields.io/badge/GitHub-RayExo-181717?style=for-the-badge&logo=github&logoColor=white"/></a>
 </p>
 
 </div>
@@ -35,7 +33,7 @@
 Support Web is a fully-featured Discord bot with a modern web dashboard for managing everything from antinuke to music. Built on `discord.py v2`, `FastAPI`, and `Next.js 14` with Tailwind CSS.
 
 ```
-ZyroX-CV2-With-Dashboard/
+support-web/
 ├── 🤖  bot/                   Python Discord bot + FastAPI backend
 │   ├── api/                   Dashboard REST API (FastAPI)
 │   ├── cogs/                  All bot features (commands, events, antinuke, automod…)
@@ -52,6 +50,17 @@ ZyroX-CV2-With-Dashboard/
     ├── lib/                   API helpers & utilities
     └── types/                 TypeScript type definitions
 ```
+
+---
+
+## ✦ Creator
+
+| | |
+|---|---|
+| **Project** | **Support** — Discord Support Bot + Web Dashboard |
+| **Creator** | **OGADI** |
+| **Discord Server** | https://discord.gg/UVRWygSpJq |
+| **License** | MIT |
 
 ---
 
@@ -122,7 +131,7 @@ ZyroX-CV2-With-Dashboard/
 - Slash + prefix commands
 - FastAPI backend with API key auth + rate limiting
 - Cloudflare Tunnel — unlimited bandwidth, permanent URL, zero system installs
-- MD credit on the project documentation and licenses
+- Creator credit — **OGADI** — on the project documentation and licenses
 
 </td>
 </tr>
@@ -145,11 +154,9 @@ ZyroX-CV2-With-Dashboard/
 
 ## ✦ Bot Setup
 
-**1 — Clone the repo**
-
+**1 — Open the project folder**
 ```bash
-git clone https://github.com/RayExo/ZyroX-CV2-With-Dashboard
-cd ZyroX-CV2-With-Dashboard/bot
+cd support-web/bot
 ```
 
 **2 — Install dependencies**
@@ -173,7 +180,7 @@ Copy `.env.example` to `.env` and fill in the values:
 ```env
 # ── Core ──────────────────────────────────────────────────────────
 TOKEN              = your_discord_bot_token
-brand_name         = 'Support Web'
+brand_name         = 'Support'
 
 # ── Owner IDs (comma-separated) ───────────────────────────────────
 OWNER_IDS          = 870179991462236170,767979794411028491
@@ -234,8 +241,8 @@ DISCORD_CLIENT_ID             = your_discord_oauth_client_id
 DISCORD_CLIENT_SECRET         = your_discord_oauth_client_secret
 
 NEXT_PUBLIC_ADMIN_IDS         = your_discord_user_id
-NEXT_PUBLIC_BRAND_NAME        = "ZyroX"
-NEXT_PUBLIC_BRAND_NAME_WORD   = "ZX"
+NEXT_PUBLIC_BRAND_NAME        = "Support"
+NEXT_PUBLIC_BRAND_NAME_WORD   = "SW"
 ```
 
 **3 — Run locally**
@@ -299,7 +306,7 @@ The bot uses **pycloudflared** — a Python package that downloads the `cloudfla
 **Setup (browser only, no CLI needed):**
 
 1. Go to [one.dash.cloudflare.com](https://one.dash.cloudflare.com) → **Networks → Tunnels → Create a tunnel**
-2. Choose **Cloudflared**, give it a name (e.g. `zyrox-api`), save
+2. Choose **Cloudflared**, give it a name (e.g. `support-api`), save
 3. On the **Install connector** step, copy the token from the command shown:
    ```
    cloudflared tunnel run --token <COPY_THIS>
@@ -421,20 +428,19 @@ Runs automatically on startup when `EMOJI_SYNC=true`:
 
 <div align="center">
 
-## ✦ Support Web
+## ✦ Support
 
 *Built for protection. Designed for style.*
+
+**Created by OGADI** · [Discord Server](https://discord.gg/UVRWygSpJq)
 
 <a href="https://discord.gg/UVRWygSpJq"><img src="https://img.shields.io/badge/Discord-Join_Server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Support Web Discord Server"/></a>
 
 <p>
   <a href="https://discord.gg/UVRWygSpJq"><img src="https://img.shields.io/badge/Discord-Join_Server-5865F2?style=for-the-badge&logo=discord&logoColor=white"/></a>
-  <a href="https://youtube.com/@CodeXDevs"><img src="https://img.shields.io/badge/YouTube-CodeXDevs-FF0000?style=for-the-badge&logo=youtube&logoColor=white"/></a>
-  <a href="https://github.com/RayExo"><img src="https://img.shields.io/badge/GitHub-RayExo-181717?style=for-the-badge&logo=github&logoColor=white"/></a>
   <a href="https://nexiohost.in"><img src="https://img.shields.io/badge/⭐%20PREMIUM%20HOSTING-NexioHost-FFD700?style=for-the-badge&labelColor=1a1a2e&color=FFD700&logoColor=FFD700"/></a>
 </p>
 
-© 2026 MD — MIT License
+© 2026 OGADI — MIT License
 
 </div>
-"# discord-og-bot" 

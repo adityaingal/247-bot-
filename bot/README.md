@@ -21,8 +21,6 @@
 </p>
 <p>
   <a href="https://discord.gg/UVRWygSpJq"><img src="https://img.shields.io/badge/Discord-Join_Server-5865F2?style=for-the-badge&logo=discord&logoColor=white"/></a>
-  <a href="https://youtube.com/@CodeXDevs"><img src="https://img.shields.io/badge/YouTube-CodeXDevs-FF0000?style=for-the-badge&logo=youtube&logoColor=white"/></a>
-  <a href="https://github.com/RayExo"><img src="https://img.shields.io/badge/GitHub-RayExo-181717?style=for-the-badge&logo=github&logoColor=white"/></a>
 </p>
 
 </div>
@@ -43,7 +41,7 @@ bot/
 │   ├── commands/          All slash & prefix command modules
 │   ├── events/            General Discord event listeners
 │   ├── moderation/        Moderation action modules
-│   └── zyrox/             Core ZyroX feature cogs
+│   └── zyrox/             Core feature cogs (brand: `zyrox`)
 ├── core/                  Bot client, context, cog base classes
 ├── games/                 Standalone game logic + button views
 ├── utils/                 Emoji, tools, sync, Cloudflare tunnel
@@ -136,7 +134,7 @@ bot/
 - Slash + prefix commands
 - Cloudflare Tunnel via pycloudflared — zero system installs, unlimited traffic
 - Single `OWNER_IDS` env var controls all permission checks
-- CodeX Devs watermark on every source file
+- Creator watermark — **OGADI** — on every source file
 
 </td>
 </tr>
@@ -254,7 +252,7 @@ Uses **pycloudflared** — downloads the `cloudflared` binary automatically on f
 **Setup (browser only — no CLI needed):**
 
 1. Go to [one.dash.cloudflare.com](https://one.dash.cloudflare.com) → **Networks → Tunnels → Create a tunnel**
-2. Choose **Cloudflared**, name it (e.g. `zyrox-api`), save
+2. Choose **Cloudflared**, name it (e.g. `support-api`), save
 3. On **Install connector**, copy the token from the command shown:
    ```
    cloudflared tunnel run --token <COPY_THIS_TOKEN>
@@ -323,19 +321,19 @@ python CodeX.py
 
 <div align="center">
 
-## ✦ Support Web
+## ✦ Support
 
 *Built for protection. Designed for style.*
+
+**Created by OGADI** · [Discord Server](https://discord.gg/UVRWygSpJq)
 
 <a href="https://discord.gg/UVRWygSpJq"><img src="https://img.shields.io/badge/Discord-Join_Server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Support Web Discord Server"/></a>
 
 <p>
   <a href="https://discord.gg/UVRWygSpJq"><img src="https://img.shields.io/badge/Discord-Join_Server-5865F2?style=for-the-badge&logo=discord&logoColor=white"/></a>
-  <a href="https://youtube.com/@CodeXDevs"><img src="https://img.shields.io/badge/YouTube-CodeXDevs-FF0000?style=for-the-badge&logo=youtube&logoColor=white"/></a>
-  <a href="https://github.com/RayExo"><img src="https://img.shields.io/badge/GitHub-RayExo-181717?style=for-the-badge&logo=github&logoColor=white"/></a>
   <a href="https://nexiohost.in"><img src="https://img.shields.io/badge/⭐%20PREMIUM%20HOSTING-NexioHost-FFD700?style=for-the-badge&labelColor=1a1a2e&color=FFD700&logoColor=FFD700"/></a>
 </p>
 
-© 2026 MD — MIT License
+© 2026 OGADI — MIT License
 
 </div>

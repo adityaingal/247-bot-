@@ -5,11 +5,9 @@
  * ║   ░█░░░█░█░█░█░█▀▀░▄▀▄   ░█░█░█▀▀░▀▄▀░▀▀█                     ║
  * ║   ░▀▀▀░▀▀▀░▀▀░░▀▀▀░▀░▀   ░▀▀░░▀▀▀░░▀░░▀▀▀                     ║
  * ║                                                                  ║
- * ║           © 2026 CodeX Devs — All Rights Reserved               ║
+ * ║           © 2026 OGADI — All Rights Reserved                     ║
  * ║                                                                  ║
- * ║   discord  ──  https://discord.gg/codexdev                      ║
- * ║   youtube  ──  https://youtube.com/@CodeXDevs                   ║
- * ║   github   ──  https://github.com/RayExo                        ║
+ * ║   discord  ──  https://discord.gg/UVRWygSpJq                    ║
  * ║                                                                  ║
  * ╚══════════════════════════════════════════════════════════════════╝
  */
@@ -23,6 +21,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { PROJECT } from "@/lib/project";
 
 interface CustomRolesFormProps {
   initialConfig: any;
@@ -156,7 +155,7 @@ export function CustomRolesForm({ initialConfig, roles, guildId }: CustomRolesFo
              <li>• <code>.staff @user</code> - Assigns/Removes Staff role</li>
              <li>• <code>.girl @user</code> - Assigns/Removes Girl role</li>
              <li>• <code>.vip @user</code> - Assigns/Removes VIP role</li>
-             <li>• Ensure Zyrox is placed higher than these roles in server settings!</li>
+             <li>• Ensure {PROJECT.name} is placed higher than these roles in server settings!</li>
           </ul>
         </div>
       </div>

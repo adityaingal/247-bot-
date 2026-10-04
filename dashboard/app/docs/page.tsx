@@ -5,11 +5,9 @@
  * ║   ░█░░░█░█░█░█░█▀▀░▄▀▄   ░█░█░█▀▀░▀▄▀░▀▀█                     ║
  * ║   ░▀▀▀░▀▀▀░▀▀░░▀▀▀░▀░▀   ░▀▀░░▀▀▀░░▀░░▀▀▀                     ║
  * ║                                                                  ║
- * ║           © 2026 CodeX Devs — All Rights Reserved               ║
+ * ║           © 2026 OGADI — All Rights Reserved                     ║
  * ║                                                                  ║
- * ║   discord  ──  https://discord.gg/codexdev                      ║
- * ║   youtube  ──  https://youtube.com/@CodeXDevs                   ║
- * ║   github   ──  https://github.com/RayExo                        ║
+ * ║   discord  ──  https://discord.gg/UVRWygSpJq                    ║
  * ║                                                                  ║
  * ╚══════════════════════════════════════════════════════════════════╝
  */
@@ -182,7 +180,7 @@ export default function DocsPage() {
                The Support Web Engine utilizes a decentralized event stream processing model. When a Discord event is received, it is instantly routed to the nearest edge cluster.
                 </p>
                 <div className="bg-black/40 p-6 rounded-2xl border border-white/5 font-mono text-sm text-red-500 mb-8">
-                  $ zyrox initialize --cluster-shard [neural_07] --mode enterprise
+                  $ support initialize --cluster-shard [neural_07] --mode enterprise
                 </div>
              </div>
           </div>

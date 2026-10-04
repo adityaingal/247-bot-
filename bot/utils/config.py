@@ -4,11 +4,9 @@
 # ║   ░█░░░█░█░█░█░█▀▀░▄▀▄   ░█░█░█▀▀░▀▄▀░▀▀█                     ║
 # ║   ░▀▀▀░▀▀▀░▀▀░░▀▀▀░▀░▀   ░▀▀░░▀▀▀░░▀░░▀▀▀                     ║
 # ║                                                                  ║
-# ║            © 2026 CodeX Devs — All Rights Reserved              ║
+# ║            © 2026 OGADI — All Rights Reserved                    ║
 # ║                                                                  ║
-# ║   discord  ──  https://discord.gg/codexdev                      ║
-# ║   youtube  ──  https://youtube.com/@CodeXDevs                   ║
-# ║   github   ──  https://github.com/RayExo                        ║
+# ║   discord  ──  https://discord.gg/UVRWygSpJq                    ║
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
@@ -25,6 +23,10 @@ BotName    = BRAND_NAME
 server     = os.getenv("SUPPORT_SERVER_URL", "https://discord.gg/UVRWygSpJq")
 serverLink = server
 ch         = "https://discord.com/channels/699587669059174461/1271825678710476911"
+
+# ── Project identity ────────────────────────────────────────────────────────
+CREATOR_NAME = "OGADI"
+PROJECT_TYPE = "Discord Support Bot + Web Dashboard"
 
 CMD_WEBHOOK_URL = os.getenv("CMD_WEBHOOK_URL")
 
