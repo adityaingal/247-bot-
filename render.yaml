@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: support-web-api
+    runtime: python
+    rootDir: bot
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python CodeX.py
+    healthCheckPath: /health
+    envVars:
+      - key: API_ENABLED
+        value: "true"
+      - key: brand_name
+        value: Support Web
+      - key: SUPPORT_SERVER_URL
+        value: https://discord.gg/UVRWygSpJq
+      - key: DISCORD_STATUS
+        value: online
+      - key: BOT_ACTIVITY
+        value: Support Web | >help
+      - key: TUNNEL_ENABLED
+        value: "false"
+      - key: TOKEN
+        sync: false
+      - key: DASHBOARD_API_KEY
+        sync: false
+      - key: OWNER_IDS
+        sync: false
+      - key: LAVALINK_HOST
+        sync: false
+      - key: LAVALINK_PASSWORD
+        sync: false
+      - key: LAVALINK_SECURE
+        value: "false"
+      - key: LAVALINK_PORT
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://support-web-dashboard.onrender.com
+
+  - type: web
+    name: support-web-dashboard
+    runtime: node
+    rootDir: dashboard
+    buildCommand: npm install && npm run build
+    startCommand: npm run start -- -H 0.0.0.0 -p $PORT
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://support-web-api.onrender.com/api/v1
+      - key: NEXT_PUBLIC_DASHBOARD_API_KEY
+        sync: false
+      - key: NEXTAUTH_URL
+        value: https://support-web-dashboard.onrender.com
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_ADMIN_IDS
+        sync: false
+      - key: NEXT_PUBLIC_BRAND_NAME
+        value: Support Web
+      - key: NEXT_PUBLIC_BRAND_NAME_WORD
+        value: SW
