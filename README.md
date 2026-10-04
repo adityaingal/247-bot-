@@ -437,3 +437,4 @@ Runs automatically on startup when `EMOJI_SYNC=true`:
 © 2026 MD — MIT License
 
 </div>
+"# discord-og-bot" 
