@@ -272,6 +272,9 @@ Open [http://localhost:3000](http://localhost:3000)
 | `API_PORT` | `8000` | Port the backend listens on |
 | `DASHBOARD_API_KEY` | — | Shared secret between bot API and dashboard |
 | `CORS_ORIGINS` | _(empty)_ | Extra CORS-allowed origins, comma-separated |
+| `KEEPALIVE_ENABLED` | `true` | Run the built-in server-side health checker |
+| `KEEPALIVE_INTERVAL` | `600` | Seconds between health checks (minimum 10) |
+| `KEEPALIVE_URL` | your service `/health` | URL the checker GETs — your own service only, never discord.com |
 | `WEBHOOK_URL` | — | Discord webhook for command logs |
 | `TUNNEL_ENABLED` | `true` | Expose the API over HTTPS via Cloudflare Tunnel |
 | `CF_TUNNEL_TOKEN` | — | Token from Cloudflare Zero Trust dashboard |
@@ -427,6 +430,43 @@ does not restart a working process) but reports honestly:
 { "status": "degraded", "service": "Support", "discord": "disconnected" }
 ```
 
+`HEAD` is answered on `/`, `/health` and `/api/status` as well, for uptime
+monitors that probe with HEAD.
+
+### Service status
+
+`GET /api/status` (public, no secrets) separates the **web service** from the
+**Discord gateway** — one can be up while the other is down:
+
+```json
+{
+  "service": "Support",
+  "web": { "status": "online" },
+  "discord": { "status": "online", "connected": true },
+  "keepalive": { "result": "healthy", "http_status": 200, "last_checked": "14:03:11", "response_ms": 18 },
+  "guilds": 3,
+  "users": 25
+}
+```
+
+`guilds` / `users` are only present while the gateway is ready — the API never
+invents counts. `discord.status` is `online` | `starting` | `offline`.
+
+### KeepAlive (built-in health checker)
+
+One asyncio task per process (started once in `main()`, never from `on_ready`,
+so reconnects cannot create duplicate timers) GETs `KEEPALIVE_URL` every
+`KEEPALIVE_INTERVAL` seconds and **only logs the result**:
+
+```
+[14:03:11] ✓ KeepAlive: 200 OK — Support is reachable (18ms)
+[14:13:11] ✖ KeepAlive: 404 Not Found — Support is unreachable (12ms)
+```
+
+It never restarts the bot, never opens a browser, never touches discord.com,
+and never exposes tokens. The current state is also served under
+`keepalive` in `/api/status`.
+
 ### Reliability behaviour
 
 | Situation | What happens |
@@ -440,8 +480,10 @@ does not restart a working process) but reports honestly:
 | Render deploy / stop (SIGTERM) | Graceful shutdown: tasks cancelled, API server stopped, Discord connection closed, exit code 0 |
 | Process crashes | Render detects the exit and restarts the service, which then reconnects to Discord |
 
-There is **no self-ping keep-alive** and no fake activity: uptime comes from the
-Render service staying up plus discord.py's own gateway reconnect logic.
+There is **no self-ping of discord.com** and no fake activity: uptime comes
+from the Render service staying up plus discord.py's own gateway reconnect
+logic. The only built-in pinger is KeepAlive, which checks **our own**
+`/health` URL and merely reports what it saw.
 
 ### Uptime expectations (read this)
 

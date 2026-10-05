@@ -114,6 +114,8 @@ from utils.Tools import *
 from utils.config import *
 from utils.emoji import SUCCESS, ERROR, TICK, CROSS, REACTION_TEST_EMOJIS
 from utils.sync_emojis import run_sync
+from utils import keepalive
+from utils.http import http_client
 
 import jishaku
 import cogs
@@ -543,6 +545,43 @@ async def shutdown(reason: str) -> None:
     if open_connections:
         log_info(f"Closed {len(open_connections)} database connection(s).")
 
+    # Stop the health checker first, then close every aiohttp session
+    # (shared client, cogs that registered theirs, owner.py's client.session)
+    # so the process never logs "Unclosed client session".
+    try:
+        await keepalive.stop()
+    except Exception as e:
+        log_warning(f"Could not stop KeepAlive cleanly: {e!r}")
+
+    extra_session = getattr(client, "session", None)
+    if extra_session is not None and hasattr(extra_session, "close") \
+            and not getattr(extra_session, "closed", True):
+        try:
+            await extra_session.close()
+        except Exception:
+            pass
+
+    # Lavalink: Pool.close() tears down websockets/players but leaves each
+    # Node's aiohttp session open, so close those sessions too.
+    try:
+        import wavelink
+        pool_nodes = list(wavelink.Pool.nodes.values())
+        await wavelink.Pool.close()
+        lavalink_node = getattr(client, "lavalink_node", None)
+        if lavalink_node is not None and lavalink_node not in pool_nodes:
+            pool_nodes.append(lavalink_node)
+        for _node in pool_nodes:
+            _session = getattr(_node, "_session", None)
+            if _session is not None and not _session.closed:
+                await _session.close()
+    except Exception as e:
+        log_warning(f"Could not close Lavalink cleanly: {e!r}")
+
+    try:
+        await http_client.close()
+    except Exception as e:
+        log_warning(f"Could not close HTTP sessions: {e!r}")
+
     log_info("Support shut down cleanly.")
 
 
@@ -580,6 +619,9 @@ exit_code = 0
 async def main():
     global exit_code
     _install_signal_handlers(asyncio.get_running_loop())
+    # ONE health checker for the whole process (never started from on_ready,
+    # so reconnects/reloads cannot create duplicate timers).
+    keepalive.start()
 
     async with client:
         try:

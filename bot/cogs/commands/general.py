@@ -98,6 +98,10 @@ class General(commands.Cog):
   def __init__(self, bot, *args, **kwargs):
     self.bot = bot
     self.aiohttp = aiohttp.ClientSession()
+    # Register with the shared HTTP client so graceful shutdown closes it
+    # (cog_unload only runs when the extension is unloaded, not on exit).
+    from utils.http import http_client
+    http_client.register(self.aiohttp)
     self._URL_REGEX = r'(?P<url><[^: >]+:\/[^ >]+>|(?:https?|steam):\/\/[^\s<]+[^<.,:;"\'\\]\s])'
     self.color = 0xFF0000
 

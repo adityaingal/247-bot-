@@ -29,6 +29,7 @@ Call `run_sync(token)` once inside on_ready.
 import os
 import re
 import sys
+import json
 import base64
 import asyncio
 import aiohttp
@@ -78,6 +79,28 @@ async def _fetch_emoji_image(session: aiohttp.ClientSession, emoji_id: str, anim
     return None
 
 
+async def _api(session: aiohttp.ClientSession, method: str, url: str, *, max_retries: int = 1, **kwargs):
+    """Discord REST call with bounded 429 handling.
+
+    On HTTP 429: read Retry-After, wait, retry ONCE. If it is still 429 the
+    caller gets the 429 back and gives up — never an infinite retry loop.
+    Returns ``(status, body_bytes)``.
+    """
+    for attempt in range(max_retries + 1):
+        async with session.request(method, url, **kwargs) as response:
+            if response.status == 429 and attempt < max_retries:
+                wait = 5.0
+                try:
+                    wait = max(0.0, float(response.headers.get("Retry-After", "5")))
+                except (TypeError, ValueError):
+                    wait = 5.0
+                warning(f"Rate limited by Discord — Retry-After {wait:g}s (waiting once)")
+                await asyncio.sleep(wait + 0.5)
+                continue
+            return response.status, await response.read()
+    return 429, b""
+
+
 async def run_sync(token: str) -> None:
     """
     Async emoji sync. Pass the bot token directly.
@@ -116,19 +139,21 @@ async def run_sync(token: str) -> None:
 
     async with aiohttp.ClientSession(headers=headers) as session:
         # Fetch bot application ID
-        async with session.get("https://discord.com/api/v10/users/@me") as r:
-            if r.status != 200:
-                error(f"Failed to fetch bot info [HTTP {r.status}]")
-                return
-            app_id = (await r.json()).get("id")
+        status, body = await _api(session, "GET", "https://discord.com/api/v10/users/@me")
+        if status != 200:
+            error(f"Failed to fetch bot info [HTTP {status}]")
+            return
+        app_id = json.loads(body or b"{}").get("id")
 
         # Fetch existing application emojis
-        async with session.get(f"https://discord.com/api/v10/applications/{app_id}/emojis") as r:
-            if r.status != 200:
-                error(f"Failed to fetch application emojis [HTTP {r.status}]")
-                return
-            data = await r.json()
-            app_emojis: list = data.get("items", []) if isinstance(data, dict) else data
+        status, body = await _api(
+            session, "GET", f"https://discord.com/api/v10/applications/{app_id}/emojis"
+        )
+        if status != 200:
+            error(f"Failed to fetch application emojis [HTTP {status}]")
+            return
+        data = json.loads(body or b"{}")
+        app_emojis: list = data.get("items", []) if isinstance(data, dict) else data
 
         info(
             f"Found {Fore.YELLOW}{len(matches)}{Style.RESET_ALL} templates "
@@ -173,24 +198,26 @@ async def run_sync(token: str) -> None:
             b64 = base64.b64encode(image_data).decode("utf-8")
             image_uri = f"data:{mime};base64,{b64}"
 
-            async with session.post(
+            status, body = await _api(
+                session,
+                "POST",
                 f"https://discord.com/api/v10/applications/{app_id}/emojis",
                 json={"name": name, "image": image_uri},
-            ) as r2:
-                if r2.status in (200, 201):
-                    new_emoji = await r2.json()
-                    new_id = new_emoji["id"]
-                    old_str = f"<{animated_str}:{name}:{old_id}>"
-                    new_str = f"<{animated_str}:{new_emoji['name']}:{new_id}>"
-                    content = content.replace(old_str, new_str)
-                    app_emojis.append(new_emoji)
-                    updated = True
-                    uploaded += 1
-                    success(f"Uploaded: {name} {Fore.LIGHTBLACK_EX}[saved as ID: {new_id}]")
-                else:
-                    resp_text = await r2.text()
-                    error(f"Discord rejected {name} -> {resp_text}")
-                    failed += 1
+            )
+            if status in (200, 201):
+                new_emoji = json.loads(body or b"{}")
+                new_id = new_emoji["id"]
+                old_str = f"<{animated_str}:{name}:{old_id}>"
+                new_str = f"<{animated_str}:{new_emoji['name']}:{new_id}>"
+                content = content.replace(old_str, new_str)
+                app_emojis.append(new_emoji)
+                updated = True
+                uploaded += 1
+                success(f"Uploaded: {name} {Fore.LIGHTBLACK_EX}[saved as ID: {new_id}]")
+            else:
+                resp_text = (body or b"").decode("utf-8", "replace")[:300]
+                error(f"Discord rejected {name} -> {resp_text}")
+                failed += 1
 
             # Small delay to respect Discord rate limits
             await asyncio.sleep(0.5)

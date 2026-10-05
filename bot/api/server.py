@@ -10,7 +10,7 @@
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
@@ -26,6 +26,7 @@ from utils.config import *
 from api.routes import bot, guilds, admin
 from api.dependencies import verify_api_key, limiter
 from api.db_manager import db_manager
+from utils.keepalive import snapshot as keepalive_snapshot
 
 # Configure logging
 logger = logging.getLogger("api_request_logs")
@@ -111,9 +112,48 @@ def create_app() -> FastAPI:
     async def root():
         return {
             "status": "online",
-            "bot_name": {BRAND_NAME},
+            "bot_name": BRAND_NAME,
             "api_version": "1.0"
         }
+
+    @app.head("/", summary="API Root (HEAD)", include_in_schema=False)
+    async def root_head():
+        # Uptime monitors and CDNs often probe with HEAD; FastAPI does not map
+        # HEAD to GET automatically, so answer it explicitly (body-less).
+        return Response(status_code=200)
+
+    @app.get("/api/status", summary="Service status",
+             description="Web service status vs Discord gateway status. Public, lightweight, no secrets.")
+    async def api_status():
+        """Honest split between the HTTP service and the Discord connection.
+
+        Web ONLINE does NOT imply Discord ONLINE - the two are reported
+        separately and guild/user counts are only included when the gateway
+        is actually ready (never invented).
+        """
+        bot = getattr(app.state, "bot", None)
+        state = _discord_state(bot)
+
+        payload = {
+            "service": BRAND_NAME,
+            "web": {"status": "online"},
+            "discord": {
+                "status": {"connected": "online", "connecting": "starting"}.get(state, "offline"),
+                "connected": state == "connected",
+            },
+            "keepalive": keepalive_snapshot(),
+        }
+        if state == "connected" and bot is not None:
+            try:
+                payload["guilds"] = len(bot.guilds)
+                payload["users"] = sum(g.member_count or 0 for g in bot.guilds)
+            except Exception:
+                pass
+        return payload
+
+    @app.head("/api/status", summary="Service status (HEAD)", include_in_schema=False)
+    async def api_status_head():
+        return Response(status_code=200)
 
     @app.get("/health", summary="Health Check", description="Performs a health check for container orchestration and uptime monitoring.")
     async def health():
@@ -131,6 +171,11 @@ def create_app() -> FastAPI:
             "service": BRAND_NAME,
             "discord": discord_state,
         }
+
+    @app.head("/health", summary="Health Check (HEAD)", include_in_schema=False)
+    async def health_head():
+        # Same contract as GET /health: 200 whenever the process answers.
+        return Response(status_code=200)
 
     return app
 

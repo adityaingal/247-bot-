@@ -115,12 +115,22 @@ class VanityRoles(commands.Cog):
             role = guild.get_role(role_id)
             log_channel = guild.get_channel(log_channel_id)
 
+            # Official Discord library call: shares the bot's own rate-limited
+            # HTTP session instead of opening a raw discord.com connection
+            # (plus a brand new aiohttp session) on every single tick.
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(f"https://discord.com/api/v10/invites/{vanity}") as response:
-                        is_active = response.status == 200
+                await self.bot.fetch_invite(vanity)
+                is_active = True
+            except discord.NotFound:
+                is_active = False
+            except discord.HTTPException as e:
+                # 429/403/etc: keep the previous status, never flip roles on
+                # a rate-limit response and never spam the console.
+                if getattr(e, "status", None) != 429:
+                    print(f"⚠️ Vanity check skipped for {vanity}: HTTP {getattr(e, 'status', '?')}")
+                continue
             except Exception as e:
-                print(f"⚠️ Error checking vanity {vanity}: {e}")
+                print(f"⚠️ Error checking vanity {vanity}: {type(e).__name__}")
                 continue
 
             # Vanity is ACTIVE

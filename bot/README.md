@@ -228,6 +228,9 @@ python CodeX.py
 | `API_PORT` | `8000` | Port the backend listens on |
 | `DASHBOARD_API_KEY` | — | Shared secret between bot API and dashboard |
 | `CORS_ORIGINS` | _(empty)_ | Extra CORS-allowed origins, comma-separated |
+| `KEEPALIVE_ENABLED` | `true` | Run the built-in server-side health checker |
+| `KEEPALIVE_INTERVAL` | `600` | Seconds between health checks (minimum 10) |
+| `KEEPALIVE_URL` | your service `/health` | URL the checker GETs — own service only, never discord.com |
 | `WEBHOOK_URL` | — | Discord webhook for command logs |
 | `TUNNEL_ENABLED` | `true` | Expose API over HTTPS via Cloudflare Tunnel |
 | `CF_TUNNEL_TOKEN` | — | Token from Cloudflare Zero Trust dashboard |

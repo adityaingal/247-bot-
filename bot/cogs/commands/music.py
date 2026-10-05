@@ -390,6 +390,14 @@ class Music(commands.Cog):
                     pass
 
     async def connect_nodes(self) -> None:
+        # wavelink builds its handshake headers from client.user (it asserts),
+        # so connecting before login just fails and burns retry/backoff time
+        # before audio can start.
+        try:
+            await self.client.wait_until_ready()
+        except Exception:
+            pass
+
         host = os.getenv("LAVALINK_HOST", "lava-v4.ajieblogs.eu.org")
         password = os.getenv("LAVALINK_PASSWORD", "https://dsc.gg/ajidevserver")
         secure = os.getenv("LAVALINK_SECURE", "true").strip().lower() == "true"
@@ -400,8 +408,35 @@ class Music(commands.Cog):
         else:
             uri = f"http://{host}:{port}" if port else f"http://{host}"
 
-        nodes = [wavelink.Node(uri=uri, password=password)]
-        await wavelink.Pool.connect(nodes=nodes, client=self.client, cache_capacity=None)
+        node = wavelink.Node(uri=uri, password=password)
+        # Reference kept on the bot so graceful shutdown can close the node's
+        # aiohttp session (wavelink.Pool.close() does not close it).
+        self.client.lavalink_node = node
+
+        connect_task = asyncio.create_task(
+            wavelink.Pool.connect(nodes=[node], client=self.client, cache_capacity=None)
+        )
+        done, _ = await asyncio.wait({connect_task}, timeout=120)
+        if not done:
+            print(
+                f"[Music] Lavalink not reachable after 120s -> {uri} "
+                "(wavelink keeps retrying in background)",
+                flush=True,
+            )
+            await connect_task
+
+        exc = connect_task.exception()
+        if exc is not None:
+            print(f"[Music] Lavalink connect error -> {uri}: {type(exc).__name__}: {exc}", flush=True)
+            return
+
+        # Pool.connect logs-and-skips auth/version failures instead of raising,
+        # so a missing node here means the server rejected us.
+        if node.identifier not in wavelink.Pool.nodes:
+            print(
+                f"[Music] Lavalink node rejected -> {uri} (bad password or non-Lavalink-v4 server?)",
+                flush=True,
+            )
 
 
     async def display_player_embed(self, player, track, ctx, autoplay=False):
@@ -984,3 +1019,13 @@ class Music(commands.Cog):
         if voice_channel:
             await voice_channel.edit(status=None)  # type: ignore
         await self.on_track_end(payload)
+
+    @commands.Cog.listener()
+    async def on_wavelink_node_ready(self, payload: wavelink.NodeReadyEventPayload):
+        # Fires on the initial connect and on every reconnect, so "no audio"
+        # can be diagnosed straight from the logs.
+        print(f"[Music] Lavalink node ready: {payload.node.uri}", flush=True)
+
+    @commands.Cog.listener()
+    async def on_wavelink_node_disconnected(self, payload: wavelink.NodeDisconnectedEventPayload):
+        print(f"[Music] Lavalink node disconnected: {payload.node.uri}", flush=True)

@@ -27,6 +27,7 @@ import {
 import { api } from "@/lib/api";
 import Link from "next/link";
 import { PROJECT } from "@/lib/project";
+import ServiceStatus from "@/components/dashboard/service-status";
 
 export default async function DashboardPage() {
   let botInfo;
@@ -136,24 +137,10 @@ export default async function DashboardPage() {
           <div className="absolute inset-0 bg-gradient-to-bl from-red-500/[0.05] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
           
           <div className="relative z-10">
-            <h2 className="text-2xl font-bold text-white mb-3 font-outfit">Module Status</h2>
-            <p className="text-slate-500 text-sm mb-10 font-medium">Global operational health of Support Web core.</p>
-            
-            <div className="space-y-4">
-              {[
-                { name: 'Neural Gateway', status: 'Optimal' },
-                { name: 'Database Cluster', status: 'Synchronized' },
-                { name: 'Edge Shards', status: 'Operational' }
-              ].map((service) => (
-                <div key={service.name} className="flex items-center justify-between p-4 bg-white/[0.02] rounded-2xl border border-white/[0.05] hover:border-red-500/20 transition-colors">
-                  <span className="text-xs font-bold text-slate-300">{service.name}</span>
-                  <div className="flex items-center gap-3">
-                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                    <span className="text-[9px] uppercase font-black text-emerald-500 tracking-widest">{service.status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <h2 className="text-2xl font-bold text-white mb-3 font-outfit">Service Status</h2>
+            <p className="text-slate-500 text-sm mb-10 font-medium">Live health from <span className="text-red-500/80 font-bold">GET /api/status</span> — Render service and Discord bot reported separately.</p>
+
+            <ServiceStatus />
           </div>
           
           <Link
