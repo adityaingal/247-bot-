@@ -672,13 +672,28 @@ async def main():
                     return
 
                 except discord.HTTPException as e:
-                    if e.status in (401, 403):
-                        log_error(f"Discord API refused the connection (HTTP {e.status}).")
+                    if getattr(e, "status", None) == 401:
+                        log_error("Discord API refused the connection (HTTP 401).")
                         log_error("Check the TOKEN environment variable in Render.")
                         log_error("Support failed to start. Reason: Discord rejected the configured token.")
                         exit_code = 1
                         return
-                    failure = e
+                    if getattr(e, "status", None) == 403:
+                        body = str(e).lower()
+                        if "<html" in body or "cloudflare" in body or "1015" in body:
+                            # Cloudflare edge block during login - not a token
+                            # verdict. Retry with cooldown instead of dying
+                            # instantly (Render would restart-loop us).
+                            failure = e
+                        else:
+                            log_error("Discord API refused the connection (HTTP 403).")
+                            log_error("Check the TOKEN environment variable in Render and the "
+                                      "privileged intents in the Discord Developer Portal.")
+                            log_error("Support failed to start. Reason: Discord rejected the configured token.")
+                            exit_code = 1
+                            return
+                    else:
+                        failure = e
 
                 except (discord.GatewayNotFound, aiohttp.ClientError,
                         asyncio.TimeoutError, OSError) as e:
@@ -712,9 +727,16 @@ async def main():
                 except Exception:
                     pass
 
-                is_rate_limited = (
-                    isinstance(failure, discord.HTTPException)
-                    and getattr(failure, "status", None) == 429
+                failure_status = getattr(failure, "status", None)
+                failure_body = str(failure).lower()
+                is_rate_limited = isinstance(failure, discord.HTTPException) and (
+                    failure_status == 429
+                    or (
+                        failure_status == 403
+                        and ("<html" in failure_body
+                             or "cloudflare" in failure_body
+                             or "1015" in failure_body)
+                    )
                 )
                 wait_time = min(delay, 30.0)
                 if is_rate_limited:
