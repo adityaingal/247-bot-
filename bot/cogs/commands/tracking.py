@@ -25,6 +25,7 @@ class Tracking(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.invites = {}
+        self._cache_loaded = False
 
     async def ensure_tables(self, guild_id):
         async with aiosqlite.connect(INVITE_DB) as db:
@@ -47,29 +48,45 @@ class Tracking(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
+        # Invite cache prefetch: runs ONCE per process (on_ready fires again
+        # on every gateway reconnect), ONE guild at a time with a pause
+        # between requests, and stops immediately when Discord rate-limits
+        # us - never a parallel burst of guild.invites() calls.
+        if self._cache_loaded:
+            return
+        self._cache_loaded = True
+
         import asyncio
-        async def fetch_invites(guild):
+        from utils.http import log_discord_once
+
+        for guild in self.bot.guilds:
             try:
                 self.invites[guild.id] = await guild.invites()
             except discord.Forbidden:
                 pass
+            except discord.HTTPException as e:
+                if getattr(e, "status", None) == 429:
+                    log_discord_once(
+                        "tracking-invites-429",
+                        "429 rate limited endpoint=GET /invites - stopping invite cache prefetch",
+                    )
+                    return
             except Exception:
                 pass
-
-        await asyncio.gather(*(fetch_invites(guild) for guild in self.bot.guilds))
+            await asyncio.sleep(0.5)
 
     @commands.Cog.listener()
     async def on_invite_create(self, invite):
         try:
             self.invites[invite.guild.id] = await invite.guild.invites()
-        except discord.Forbidden:
+        except (discord.Forbidden, discord.HTTPException):
             pass
 
     @commands.Cog.listener()
     async def on_invite_delete(self, invite):
         try:
             self.invites[invite.guild.id] = await invite.guild.invites()
-        except discord.Forbidden:
+        except (discord.Forbidden, discord.HTTPException):
             pass
 
     @commands.Cog.listener()
@@ -81,6 +98,10 @@ class Tracking(commands.Cog):
         try:
             invites_after = await guild.invites()
         except discord.Forbidden:
+            invites_after = []
+        except discord.HTTPException:
+            # Rate limited / API error: skip this join's attribution instead
+            # of letting the exception spam the event log.
             invites_after = []
 
         inviter = None

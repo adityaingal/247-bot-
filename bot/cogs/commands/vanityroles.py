@@ -16,6 +16,7 @@ import aiosqlite
 import aiohttp
 import os
 from utils.Tools import *
+from utils.http import log_discord_once
 
 DB_PATH = "db/vanity.db"
 
@@ -126,8 +127,14 @@ class VanityRoles(commands.Cog):
             except discord.HTTPException as e:
                 # 429/403/etc: keep the previous status, never flip roles on
                 # a rate-limit response and never spam the console.
-                if getattr(e, "status", None) != 429:
-                    print(f"⚠️ Vanity check skipped for {vanity}: HTTP {getattr(e, 'status', '?')}")
+                status = getattr(e, "status", None)
+                if status == 429:
+                    log_discord_once(
+                        "vanity-429",
+                        f"429 rate limited endpoint=GET /invites/{vanity} - keeping previous status",
+                    )
+                elif status is not None:
+                    print(f"⚠️ Vanity check skipped for {vanity}: HTTP {status}")
                 continue
             except Exception as e:
                 print(f"⚠️ Error checking vanity {vanity}: {type(e).__name__}")

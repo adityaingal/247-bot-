@@ -21,7 +21,7 @@ from typing import Optional
 
 from utils.http import http_client
 
-KEEPALIVE_URL = (os.getenv("KEEPALIVE_URL") or "https://bot-9wdz.onrender.com/health").strip()
+KEEPALIVE_URL = (os.getenv("KEEPALIVE_URL") or "https://bot-support-aauu.onrender.com/health").strip()
 KEEPALIVE_SECONDS = max(10, int(os.getenv("KEEPALIVE_INTERVAL") or "600"))
 KEEPALIVE_ENABLED = (os.getenv("KEEPALIVE_ENABLED") or "true").strip().lower() == "true"
 KEEPALIVE_NAME = (os.getenv("KEEPALIVE_NAME") or "Support").strip()

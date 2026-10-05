@@ -115,7 +115,7 @@ from utils.config import *
 from utils.emoji import SUCCESS, ERROR, TICK, CROSS, REACTION_TEST_EMOJIS
 from utils.sync_emojis import run_sync
 from utils import keepalive
-from utils.http import http_client
+from utils.http import http_client, describe_http_failure, log_discord_once
 
 import jishaku
 import cogs
@@ -294,8 +294,18 @@ async def on_command_completion(context: commands.Context) -> None:
         
         try:
             await webhook.send(embed=embed)
+        except discord.HTTPException as e:
+            # Never dump the body (429s here can be a Cloudflare HTML page)
+            # and never retry - the command already succeeded.
+            log_discord_once(
+                f"cmd-webhook-{getattr(e, 'status', 0)}",
+                f"command-log webhook: {describe_http_failure(e)} - not retrying",
+            )
         except Exception as e:
-            print(f'Command log webhook failed: {e}')
+            log_discord_once(
+                f"cmd-webhook-{type(e).__name__}",
+                f"command-log webhook failed: {type(e).__name__}",
+            )
 
 
 # --- Utility Commands ---
@@ -676,8 +686,9 @@ async def main():
 
                 except Exception as e:
                     failure = e
-                    log_warning(f"Unexpected error while starting: {e!r}")
-                    traceback.print_exc()
+                    log_warning(f"Unexpected error while starting: {describe_http_failure(e)}")
+                    if "<html" not in str(e).lower() and "<!doctype" not in str(e).lower():
+                        traceback.print_exc()
 
                 # --- Recoverable failure: bounded exponential backoff (1→30s) ---
                 if client.is_closed():
@@ -688,12 +699,36 @@ async def main():
                 attempt += 1
                 if attempt >= MAX_START_ATTEMPTS:
                     log_error(f"Support failed to start after {MAX_START_ATTEMPTS} attempts.")
-                    log_error(f"Reason: {failure!r}")
+                    log_error(f"Reason: {describe_http_failure(failure)}")
                     exit_code = 1
                     return
 
+                # discord.py's static_login() creates a brand new aiohttp
+                # session on every call, so each retry would leak the previous
+                # one ("Unclosed client session" in the Render logs). Close it
+                # before waiting; the next attempt creates a fresh one.
+                try:
+                    await client.http.close()
+                except Exception:
+                    pass
+
+                is_rate_limited = (
+                    isinstance(failure, discord.HTTPException)
+                    and getattr(failure, "status", None) == 429
+                )
                 wait_time = min(delay, 30.0)
-                log_warning(f"Temporary connection failure ({failure!r}) - "
+                if is_rate_limited:
+                    # A 429/Cloudflare block lasts minutes; retrying faster
+                    # only renews the ban. Honour it with a long, bounded
+                    # cooldown instead of 1s..30s connect-style backoff.
+                    wait_time = min(max(wait_time, 60.0), 180.0)
+                    log_discord_once(
+                        "startup-rate-limit",
+                        f"{describe_http_failure(failure)} during login - "
+                        f"entering cooldown {wait_time:.0f}s "
+                        f"(attempt {attempt}/{MAX_START_ATTEMPTS - 1})",
+                    )
+                log_warning(f"Temporary connection failure ({describe_http_failure(failure)}) - "
                             f"retry {attempt}/{MAX_START_ATTEMPTS - 1} in {wait_time:.0f}s")
                 await asyncio.sleep(wait_time)
                 delay *= 2

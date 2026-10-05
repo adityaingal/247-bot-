@@ -15,6 +15,7 @@ from utils.emoji import TICK
 from discord.ext import commands
 import aiosqlite
 import asyncio
+import time
 from datetime import timedelta
 import re
 
@@ -22,6 +23,20 @@ class AntiInvite(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.invite_pattern = re.compile(r'(https?://)?(www\.)?(discord\.gg|discordapp\.com/invite|discord\.com/invite)/\S+')
+        # guild_id -> (monotonic timestamp, invites list). Without this cache
+        # every invite-bearing message did a fresh guild.invites() REST call,
+        # which could storm the Discord API during invite spam.
+        self._invites_cache = {}
+
+    async def get_guild_invites(self, guild):
+        """Guild invites from a 30s cache - at most one REST call per guild."""
+        now = time.monotonic()
+        cached = self._invites_cache.get(guild.id)
+        if cached is not None and now - cached[0] < 30:
+            return cached[1]
+        invites = await guild.invites()
+        self._invites_cache[guild.id] = (now, invites)
+        return invites
 
     async def is_automod_enabled(self, guild_id):
         async with aiosqlite.connect("db/automod.db") as db:
@@ -99,8 +114,8 @@ class AntiInvite(commands.Cog):
             invite_code = invite_link.split('/')[-1]
 
             try:
-                invite = await guild.invites()
-                if any(invite.code == invite_code for invite in invite):
+                guild_invites = await self.get_guild_invites(guild)
+                if any(inv.code == invite_code for inv in guild_invites):
                     return  
 
                 punishment = await self.get_punishment(guild_id)

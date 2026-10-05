@@ -140,7 +140,8 @@ class Giveaway(commands.Cog):
                     await self.connection.commit()
 
                 except (discord.HTTPException, aiohttp.ClientResponseError) as e:
-                    logging.error(f"Error ending giveaway: {e}")
+                    logging.error(f"Error ending giveaway: {type(e).__name__}"
+                                  + (f" (HTTP {e.status})" if isinstance(e, discord.HTTPException) else ""))
 
         except IndexError:
             logging.error(f"Giveaway data is corrupted or missing: {giveaway}")
@@ -149,10 +150,20 @@ class Giveaway(commands.Cog):
 
     @tasks.loop(seconds=5)
     async def GiveawayEnd(self):
-        await self.cursor.execute("SELECT ends_at, guild_id, message_id, host_id, winners, prize, channel_id FROM Giveaway WHERE ends_at <= ?", (datetime.datetime.now().timestamp(),))
-        ends_raw = await self.cursor.fetchall()
+        try:
+            await self.cursor.execute("SELECT ends_at, guild_id, message_id, host_id, winners, prize, channel_id FROM Giveaway WHERE ends_at <= ?", (datetime.datetime.now().timestamp(),))
+            ends_raw = await self.cursor.fetchall()
+        except Exception as e:
+            # Typically the DB pool closing during shutdown - a concise line
+            # instead of a stack trace, and the loop stays alive for the next
+            # tick when it is a transient error.
+            logging.warning(f"GiveawayEnd query skipped: {type(e).__name__}")
+            return
         for giveaway in ends_raw:
-            await self.end_giveaway(giveaway)
+            try:
+                await self.end_giveaway(giveaway)
+            except Exception as e:
+                logging.warning(f"GiveawayEnd could not end {giveaway[2]}: {type(e).__name__}")
 
 
 

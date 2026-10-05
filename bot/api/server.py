@@ -89,6 +89,8 @@ def create_app() -> FastAPI:
         "http://localhost:3000",
         "https://localhost:3000",
         "https://your-vercel-url-here.vercel.app",
+        "https://dashboard-qlf5.onrender.com",
+        "https://support-web-dashboard.onrender.com",
         *_extra_origins,
     ]))
 

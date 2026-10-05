@@ -25,6 +25,37 @@ MAX_RETRIES = 3
 RETRYABLE_STATUSES = (429, 500, 502, 503, 504)
 _RATE_LIMIT_LOG_GAP = 60  # seconds between "rate limited" log lines
 
+_last_discord_log: dict = {}
+
+
+def describe_http_failure(exc: BaseException) -> str:
+    """One-line failure description for logs.
+
+    Never dumps the exception's payload: Discord/Cloudflare 429 bodies are
+    HTML pages and must not end up in Render's log stream.
+    """
+    status = getattr(exc, "status", None)
+    text = str(exc)
+    lowered = text.lower()
+    cloudflare = "1015" in text or "cloudflare" in lowered
+    if status is not None:
+        label = "429 rate limited" if status == 429 else f"HTTP {status}"
+        if cloudflare:
+            return f"{label} / cloudflare block ({type(exc).__name__}, body suppressed)"
+        return f"{label} ({type(exc).__name__}, body suppressed)"
+    if "<html" in lowered or "<!doctype" in lowered:
+        return f"{type(exc).__name__} (html body suppressed)"
+    snippet = " ".join(text.split())
+    return f"{type(exc).__name__}: {snippet[:160]}"
+
+
+def log_discord_once(key: str, message: str, gap: float = _RATE_LIMIT_LOG_GAP) -> None:
+    """Print [DiscordHTTP] <message> at most once per key per gap seconds."""
+    now = time.time()
+    if now - _last_discord_log.get(key, 0.0) >= gap:
+        _last_discord_log[key] = now
+        print(f"[DiscordHTTP] {message}", flush=True)
+
 
 class HTTPClient:
     """Process-wide HTTP client (see module docstring for the rules)."""
