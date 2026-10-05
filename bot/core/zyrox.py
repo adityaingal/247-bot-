@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 import os
+import traceback
 from discord.ext import commands, tasks
 import discord
 import aiohttp
@@ -35,6 +36,15 @@ extensions: List[str] = [
     "cogs"
 ]
 
+
+class ExtensionLoadError(RuntimeError):
+    """Raised when the main cog package fails to load.
+
+    This is a *fatal* startup error: the bot must not pretend to be healthy
+    when none of its commands can work.
+    """
+
+
 class zyrox(commands.AutoShardedBot):
     def __init__(self, *arg, **kwargs):
         intents = discord.Intents.all()
@@ -53,6 +63,7 @@ class zyrox(commands.AutoShardedBot):
                          shard_count=1)
         self.status_index = 0
         self.status_list = []
+        self._cogs_loaded = False
 
     @staticmethod
     def _discord_status() -> discord.Status:
@@ -61,8 +72,15 @@ class zyrox(commands.AutoShardedBot):
         return getattr(discord.Status, value, discord.Status.online)
 
     async def setup_hook(self):
-        await self.load_extensions()
-        self.status_task.start()
+        # login() runs setup_hook again whenever start() is retried after a
+        # temporary network failure — loading twice would crash on duplicate
+        # cogs and on an already-running task loop.
+        if not self._cogs_loaded:
+            print("INFO  - Loading cogs...", flush=True)
+            await self.load_extensions()
+            self._cogs_loaded = True
+        if not self.status_task.is_running():
+            self.status_task.start()
 
     async def load_extensions(self):
         for extension in extensions:
@@ -70,41 +88,71 @@ class zyrox(commands.AutoShardedBot):
                 await self.load_extension(extension)
                 print(Fore.GREEN + Style.BRIGHT + f"Loaded extension: {extension}")
             except Exception as e:
-                print(f"{Fore.RED}{Style.BRIGHT}Failed to load extension {extension}. {e}")
+                print(f"{Fore.RED}{Style.BRIGHT}Failed to load extension {extension}. {e}", flush=True)
+                traceback.print_exc()
+                raise ExtensionLoadError(f"failed to load extension '{extension}': {e}") from e
         print(Fore.GREEN + Style.BRIGHT + "*" * 20)
+
+    async def close(self) -> None:
+        # Stop our own loops before closing the gateway so shutdown is clean.
+        try:
+            if self.status_task.is_running():
+                self.status_task.cancel()
+        except Exception:
+            pass
+        # Close the shared aiohttp session created by the Badges/owner cog.
+        session = getattr(self, "session", None)
+        if session is not None:
+            try:
+                await session.close()
+            except Exception:
+                pass
+            self.session = None
+        await super().close()
 
     @tasks.loop(seconds=30)
     async def status_task(self):
-        await self.wait_until_ready()
-        if not self.guilds:
-            return
-
-        guild = self.guilds[0]  # Use first available guild for prefix
+        # Any exception here would silently stop the presence rotation forever,
+        # so the whole loop body is guarded.
         try:
-            config = await getConfig(guild.id)
-            prefix = config.get("prefix", ">")
-        except:
-            prefix = ">"
+            await self.wait_until_ready()
+            if not self.guilds:
+                return
 
-        user_count = sum(g.member_count or 0 for g in self.guilds)
-        guild_count = len(self.guilds)
+            guild = self.guilds[0]  # Use first available guild for prefix
+            try:
+                config = await getConfig(guild.id)
+                prefix = config.get("prefix", ">")
+            except Exception:
+                prefix = ">"
 
-        configured_activity = os.getenv("BOT_ACTIVITY", "").strip()
-        self.status_list = [
-            (discord.ActivityType.playing, configured_activity or f"{prefix}help | {BotName}"),
-            (discord.ActivityType.watching, f"{user_count} users"),
-            (discord.ActivityType.watching, f"{guild_count} servers"),
-            (discord.ActivityType.listening, "support requests"),
-            (discord.ActivityType.playing, f"Protecting with {BotName}"),
-        ]
+            user_count = sum(g.member_count or 0 for g in self.guilds)
+            guild_count = len(self.guilds)
 
-        current = self.status_list[self.status_index % len(self.status_list)]
-        # Keep the configured online/idle/dnd status while rotating the activity.
-        await self.change_presence(
-            status=self._discord_status(),
-            activity=discord.Activity(type=current[0], name=current[1]),
-        )
-        self.status_index += 1
+            configured_activity = os.getenv("BOT_ACTIVITY", "").strip()
+            self.status_list = [
+                (discord.ActivityType.playing, configured_activity or f"{prefix}help | {BotName}"),
+                (discord.ActivityType.watching, f"{user_count} users"),
+                (discord.ActivityType.watching, f"{guild_count} servers"),
+                (discord.ActivityType.listening, "support requests"),
+                (discord.ActivityType.playing, f"Protecting with {BotName}"),
+            ]
+
+            current = self.status_list[self.status_index % len(self.status_list)]
+            # Keep the configured online/idle/dnd status while rotating the activity.
+            try:
+                await self.change_presence(
+                    status=self._discord_status(),
+                    activity=discord.Activity(type=current[0], name=current[1]),
+                )
+            except discord.HTTPException as e:
+                # A failed presence update must never kill the rotation loop.
+                print(f"WARNING - presence update skipped: {e!r}", flush=True)
+            self.status_index += 1
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"WARNING - status rotation skipped: {e!r}", flush=True)
 
     async def send_raw(self, channel_id: int, content: str, **kwargs) -> typing.Optional[discord.Message]:
         await self.http.send_message(channel_id, content, **kwargs)

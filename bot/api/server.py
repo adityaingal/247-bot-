@@ -117,6 +117,57 @@ def create_app() -> FastAPI:
 
     @app.get("/health", summary="Health Check", description="Performs a health check for container orchestration and uptime monitoring.")
     async def health():
-        return {"status": "ok"}
+        """Honest health report for Render.
+
+        Always answers HTTP 200 while the process is alive (a transient
+        Discord outage must not make Render restart a working service), but
+        never claims the Discord side is healthy when it is not.
+        """
+        bot = getattr(app.state, "bot", None)
+        discord_state = _discord_state(bot)
+
+        return {
+            "status": "ok" if discord_state == "connected" else "degraded",
+            "service": BRAND_NAME,
+            "discord": discord_state,
+        }
 
     return app
+
+
+def _discord_state(bot) -> str:
+    """Report gateway state for plain and auto-sharded clients.
+
+    ``AutoShardedClient`` never populates ``client.ws`` (sockets live on the
+    per-shard objects), so checking ``ws`` alone would wrongly report
+    ``disconnected`` for a healthy sharded bot.
+    """
+    if bot is None:
+        return "disconnected"
+    try:
+        if bot.is_closed():
+            return "disconnected"
+
+        ws = getattr(bot, "ws", None)
+        if ws is not None:
+            return "connected" if getattr(ws, "open", False) else "disconnected"
+
+        shards = getattr(bot, "shards", None)
+        if isinstance(shards, dict):
+            if not shards:
+                return "connecting"
+            open_shards = 0
+            for info in shards.values():
+                try:
+                    closed = info.is_closed()
+                except Exception:
+                    closed = True
+                if not closed:
+                    open_shards += 1
+            if open_shards == len(shards):
+                return "connected"
+            return "connecting" if open_shards else "disconnected"
+
+        return "connected" if bot.is_ready() else "connecting"
+    except Exception:
+        return "disconnected"

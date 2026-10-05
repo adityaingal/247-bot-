@@ -38,6 +38,10 @@ init(autoreset=True)
 
 EMOJI_PY_PATH = os.path.join(os.path.dirname(__file__), "emoji.py")
 
+# Set on the first self-restart so a misbehaving patch can never put the
+# process into an endless restart loop.
+_RESTART_MARKER = "SUPPORT_EMOJI_SYNC_RESTARTED"
+
 
 def _log(level: str, color: str, symbol: str, msg: str) -> None:
     print(f"{color}{symbol} {level}:{Style.RESET_ALL} {msg}")
@@ -51,10 +55,15 @@ def system(msg):  _log("EmojiSync", Fore.MAGENTA, "★", msg)
 
 def _restart() -> None:
     """Replace the current process with a fresh copy of itself."""
+    if os.environ.get(_RESTART_MARKER) == "1":
+        warning("Emoji restart already performed for this run — skipping to avoid a restart loop.")
+        return
     system(f"Restarting bot to load updated emoji IDs...")
     # Flush stdout so the message is visible before the process is replaced
     sys.stdout.flush()
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+    env = dict(os.environ)
+    env[_RESTART_MARKER] = "1"
+    os.execve(sys.executable, [sys.executable] + sys.argv, env)
 
 
 async def _fetch_emoji_image(session: aiohttp.ClientSession, emoji_id: str, animated: bool):

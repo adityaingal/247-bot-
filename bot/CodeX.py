@@ -11,6 +11,8 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 import os
+import sys
+import signal
 import subprocess
 # os.system("")
 import asyncio
@@ -20,14 +22,94 @@ from datetime import datetime
 import random
 import time
 
+# Logging must never be able to crash the process. Render logs are UTF-8, but
+# a redirected/CI stdout can fall back to a legacy codec that cannot encode the
+# symbols used in the log messages below.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
+# --- Structured logging (Render captures stdout/stderr) ---
+def _emit(text: str) -> None:
+    try:
+        print(text, flush=True)
+    except Exception:
+        try:
+            sys.stdout.write(text.encode("ascii", "replace").decode("ascii") + "\n")
+            sys.stdout.flush()
+        except Exception:
+            pass
+
+
+def log_info(message: str) -> None:
+    _emit(f"INFO  - {message}")
+
+
+def log_warning(message: str) -> None:
+    _emit(f"WARNING - {message}")
+
+
+def log_error(message: str) -> None:
+    _emit(f"ERROR - {message}")
+
+
+def _startup_banner() -> None:
+    _emit("=" * 40)
+    _emit("SUPPORT BOT")
+    _emit("=" * 40)
+
+
+# --- Environment + TOKEN validation (fail fast, before anything else starts) ---
+from dotenv import load_dotenv
+load_dotenv()
+
+_startup_banner()
+log_info("Starting Support...")
+
+if not (os.getenv("TOKEN") or "").strip():
+    log_error("TOKEN environment variable is missing.")
+    log_error("Configure TOKEN in Render Environment Variables.")
+    log_error("Support failed to start. Reason: no Discord bot token configured.")
+    raise SystemExit(1)
+
+log_info("Loading configuration...")
+
 import aiohttp
+import aiosqlite
+import weakref
 import discord
 from discord import Spotify
 from discord.ext import commands, tasks
 
+# aiosqlite runs every query on a dedicated *non-daemon* thread that only
+# stops when the connection is closed. Any connection left open (cogs, API
+# routes) would keep the interpreter alive after shutdown, so every connection
+# opened by this process is tracked here and closed during shutdown.
+# A WeakSet keeps connections that are closed and released from piling up.
+_aiosqlite_connections: weakref.WeakSet = weakref.WeakSet()
+_aiosqlite_connect = aiosqlite.connect
+
+
+def _tracked_aiosqlite_connect(*args, **kwargs):
+    # aiosqlite.connect() returns the connection proxy synchronously (it can be
+    # awaited or used with `async with`), so this wrapper must stay synchronous
+    # and return that same object.
+    connection = _aiosqlite_connect(*args, **kwargs)
+    try:
+        _aiosqlite_connections.add(connection)
+    except TypeError:
+        pass
+    return connection
+
+
+aiosqlite.connect = _tracked_aiosqlite_connect
+
 from core import Context
 from core.Cog import Cog
-from core.zyrox import zyrox
+from core.zyrox import zyrox, ExtensionLoadError
 from utils.Tools import *
 from utils.config import *
 from utils.emoji import SUCCESS, ERROR, TICK, CROSS, REACTION_TEST_EMOJIS
@@ -42,9 +124,11 @@ os.environ["JISHAKU_HIDE"] = "True"
 os.environ["JISHAKU_NO_UNDERSCORE"] = "True"
 os.environ["JISHAKU_FORCE_PAGINATOR"] = "True"
 
-from dotenv import load_dotenv
-load_dotenv()
-TOKEN = os.getenv("TOKEN")
+# Always prefer the value handed out by the process environment (Render) and
+# never allow a committed file to silently provide a token.
+TOKEN = (os.getenv("TOKEN") or "").strip()
+
+log_info("Loading configuration... done")
 
 # --- Configuration ---
 # IMPORTANT: Replace these with your actual channel IDs.
@@ -52,9 +136,21 @@ SERVER_COUNT_CHANNEL_ID = 1419729255977189467  # Replace with your server count 
 USER_COUNT_CHANNEL_ID = 1419729283861184632    # Replace with your user count channel ID
 LOG_CHANNEL_ID = 1396794297386532978 # Replace with the channel ID for join/leave logs
 
+# Bounded startup retries for *recoverable* failures only (network/DNS/rate
+# limit). Fatal errors (bad token, missing intents, failed cog load) exit
+# immediately so the problem stays visible instead of being retried forever.
+MAX_START_ATTEMPTS = 7
+SHUTDOWN_TIMEOUT = 20  # seconds to wait for a running shutdown before moving on
 
 client = zyrox()
 tree = client.tree
+
+# --- One-shot startup guards -------------------------------------------------
+# Discord fires on_ready again after every gateway reconnect, so every startup
+# side effect below must run exactly once per process (no duplicate tasks).
+_ready_done = False
+_stats_task = None
+_sync_task = None
 
 # --- Background Task for Stats ---
 async def update_stats():
@@ -75,35 +171,57 @@ async def update_stats():
                 await user_channel.edit(name=f"Users: {users}")
                 
         except Exception as e:
-            print(f"Error updating stats: {e}")
+            log_warning(f"Stats update skipped: {e!r}")
         
         await asyncio.sleep(600) # Update every 10 minutes
 
-# --- Keep-Alive (stops Render/web hosts from sleeping the service) ---
-KEEPALIVE_URL = os.getenv("KEEPALIVE_URL", "").strip()
-KEEPALIVE_INTERVAL = int(os.getenv("KEEPALIVE_INTERVAL", "600") or "600")
 
-async def keep_awake():
-    """Ping KEEPALIVE_URL so the host never idles the process (bot stays online)."""
-    await client.wait_until_ready()
-    if not KEEPALIVE_URL:
-        return
-    print(f"\033[36m↑ KeepAlive: pinging {KEEPALIVE_URL} every {KEEPALIVE_INTERVAL}s\033[0m")
-    timeout = aiohttp.ClientTimeout(total=20)
-    while not client.is_closed():
-        try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(KEEPALIVE_URL) as resp:
-                    print(f"\033[36m↑ KeepAlive: {resp.status} {KEEPALIVE_URL}\033[0m")
-        except Exception as e:
-            print(f"\033[33m↑ KeepAlive: ping failed ({e})\033[0m")
-        await asyncio.sleep(KEEPALIVE_INTERVAL)
+async def sync_commands():
+    """Sync the application command tree (once per process)."""
+    try:
+        synced = await client.tree.sync()
+        all_commands = list(client.commands)
+        log_info(f"Synced {len(all_commands)} prefix commands and {len(synced)} slash commands")
+    except Exception as e:
+        log_warning(f"Command tree sync failed: {e!r}")
+
 
 # --- Event Handlers ---
 @client.event
+async def on_connect():
+    log_info("Discord connected")
+
+
+@client.event
+async def on_disconnect():
+    log_warning("Discord gateway disconnected; waiting for automatic reconnect...")
+
+
+@client.event
+async def on_resumed():
+    log_info("Discord session resumed successfully.")
+
+
+@client.event
+async def on_error(event_method, *args, **kwargs):
+    # Never let an exception inside one event handler take the bot down;
+    # technical details stay in the Render logs, never in Discord.
+    exc_type, exc, tb = sys.exc_info()
+    log_error(f"Unhandled event exception in {event_method}: {exc!r}")
+    if tb is not None:
+        traceback.print_exception(exc_type, exc, tb)
+
+
+@client.event
 async def on_ready():
-    await client.wait_until_ready()
-    
+    global _ready_done, _stats_task, _sync_task
+
+    if _ready_done:
+        # Reconnect: the gateway is back, nothing to restart.
+        log_info("Discord session resumed; bot is ready again.")
+        return
+    _ready_done = True
+
     print("""
         \033[1;31m
  ██████╗ ██████╗ ██████╗ ███████╗██╗  ██╗
@@ -114,29 +232,23 @@ async def on_ready():
  ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
         \033[0m
        """)
-    print("Loaded & Online!")
-    print(f"Logged in as: {client.user}")
-    print(f"Connected to: {len(client.guilds)} guilds")
-    print(f"Connected to: {len(client.users)} users")
+
+    log_info("Support is online.")
+    log_info("Discord connection established.")
+    log_info(f"Logged in as: {client.user}")
+    log_info(f"Connected to {len(client.guilds)} guilds")
+    log_info(f"Connected to {len(client.users)} users")
 
     # Sync application emojis on startup (never let this kill on_ready)
     try:
         await run_sync(TOKEN)
     except Exception as e:
-        print(f"Emoji sync skipped/failed: {e}")
+        log_warning(f"Emoji sync skipped/failed: {e!r}")
 
-    async def sync_commands():
-        try:
-            synced = await client.tree.sync()
-            all_commands = list(client.commands)
-            print(f"Synced Total {len(all_commands)} Client Commands and {len(synced)} Slash Commands")
-        except Exception as e:
-            print(f"Error syncing command tree: {e}")
-
-    client.loop.create_task(sync_commands())
-    client.loop.create_task(update_stats())
-    if not any(t.get_name() == "keep_awake" for t in asyncio.all_tasks()):
-        client.loop.create_task(keep_awake(), name="keep_awake")
+    # Started exactly once per process — on_ready can fire again on reconnect.
+    _sync_task = asyncio.create_task(sync_commands(), name="support:sync_commands")
+    _stats_task = asyncio.create_task(update_stats(), name="support:update_stats")
+    log_info("Background tasks started.")
 
 
 @client.event
@@ -345,18 +457,28 @@ fastapi_app.state.bot = client
 set_bot(client)
 
 API_ENABLED = os.getenv("API_ENABLED", "true").strip().lower() == "true"
-API_PORT = int(os.getenv("API_PORT") or os.getenv("PORT") or "8000")
+# Render assigns $PORT to every web service — it always wins when present.
+API_PORT = int(os.getenv("PORT") or os.getenv("API_PORT") or "8000")
+os.environ["API_PORT"] = str(API_PORT)  # keep utils.tunnel pointed at the same port
+
+api_server = None
 
 def run_api():
-    uvicorn.run(fastapi_app, host='0.0.0.0', port=API_PORT, log_level="warning")
+    global api_server
+    config = uvicorn.Config(app=fastapi_app, host='0.0.0.0', port=API_PORT, log_level="warning")
+    server = uvicorn.Server(config)
+    api_server = server
+    try:
+        server.run()
+    except Exception as e:
+        log_error(f"API server stopped unexpectedly: {e!r}")
 
 def keep_alive():
     if not API_ENABLED:
-        print(f"\033[33m◈ API Server: Disabled via API_ENABLED=false\033[0m")
+        log_warning("API server disabled via API_ENABLED=false")
         return
-    print(f"\033[32m◈ API Server: Starting on port {API_PORT}\033[0m")
-    server = Thread(target=run_api, daemon=True)
-    server.start()
+    log_info(f"API server starting on port {API_PORT}")
+    Thread(target=run_api, daemon=True, name="support:api").start()
 
 keep_alive()
 
@@ -364,38 +486,190 @@ keep_alive()
 from utils.tunnel import start_tunnel
 start_tunnel()
 
-# --- Main Bot Execution ---
-async def main():
-    async with client:
-        os.system("clear")
-        try:
-            await client.load_extension("jishaku")
-        except Exception as e:
-            print(f"jishaku load failed (continuing without it): {e}")
+# --- Graceful shutdown (Render sends SIGTERM on deploy/stop) ---
+_shutdown_started = False
+_shutdown_task = None
 
-        attempt = 0
-        while attempt < 20:
+async def shutdown(reason: str) -> None:
+    """Stop background work, the API server, the gateway and open DB connections.
+
+    Safe to call from several places (signal handler, ``main``): only the first
+    caller performs the cleanup, everybody else waits for it so the process
+    never exits while cleanup is still running.
+    """
+    global _shutdown_started, _shutdown_task
+
+    current = asyncio.current_task()
+    if _shutdown_task is not None:
+        if _shutdown_task is current:
+            return
+        try:
+            await asyncio.wait_for(asyncio.shield(_shutdown_task), timeout=SHUTDOWN_TIMEOUT)
+        except asyncio.TimeoutError:
+            log_warning("Timed out waiting for the running shutdown to finish.")
+        except Exception as e:
+            log_warning(f"Waiting for the running shutdown failed: {e!r}")
+        return
+
+    _shutdown_task = current
+    _shutdown_started = True
+    log_info(f"Shutting down: {reason}")
+
+    for task in (_stats_task, _sync_task):
+        if task is not None and not task.done():
+            task.cancel()
+
+    if api_server is not None:
+        try:
+            api_server.should_exit = True
+        except Exception as e:
+            log_warning(f"Could not stop API server cleanly: {e!r}")
+
+    try:
+        if not client.is_closed():
+            await client.close()
+    except Exception as e:
+        log_error(f"Error while closing Discord connection: {e!r}")
+
+    # Every aiosqlite connection owns a non-daemon worker thread; leaving any
+    # of them open would hang the process after the gateway is gone.
+    open_connections = list(_aiosqlite_connections)
+    for connection in open_connections:
+        try:
+            await connection.close()
+        except Exception as e:
+            log_warning(f"Could not close a database connection: {e!r}")
+    _aiosqlite_connections.clear()
+    if open_connections:
+        log_info(f"Closed {len(open_connections)} database connection(s).")
+
+    log_info("Support shut down cleanly.")
+
+
+def _install_signal_handlers(loop) -> None:
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(
+                sig,
+                lambda s=sig: asyncio.ensure_future(shutdown(f"received signal {s.name}")),
+            )
+            continue
+        except (NotImplementedError, RuntimeError, ValueError):
+            pass
+        # Windows (and some embeds) cannot use loop.add_signal_handler.
+        try:
+            def _handler(s, _f, _loop=loop):
+                try:
+                    _loop.call_soon_threadsafe(
+                        lambda: asyncio.ensure_future(
+                            shutdown(f"received signal {signal.Signals(s).name}")
+                        )
+                    )
+                except RuntimeError:
+                    # The loop is already closed - the process is exiting.
+                    pass
+
+            signal.signal(sig, _handler)
+        except (OSError, ValueError, RuntimeError):
+            log_warning(f"Signal handler for {sig.name} is unavailable on this platform.")
+
+
+# --- Main Bot Execution ---
+exit_code = 0
+
+async def main():
+    global exit_code
+    _install_signal_handlers(asyncio.get_running_loop())
+
+    async with client:
+        try:
             try:
-                await client.start(TOKEN)
-                return
-            except discord.LoginFailure:
-                print("\033[31m✖ Invalid TOKEN — fix the TOKEN env var and restart.\033[0m")
-                return
-            except discord.HTTPException as e:
-                if e.status == 429:  # Rate limited
-                    wait_time = min((2 ** attempt) + random.random(), 60)
-                    print(f"Rate limited. Retrying in {wait_time:.1f} seconds...")
-                    await asyncio.sleep(wait_time)
-                    attempt += 1
-                    continue
-                print(f"HTTP error while starting bot: {e} — retrying in 30s")
-                await asyncio.sleep(30)
+                await client.load_extension("jishaku")
+            except Exception as e:
+                log_warning(f"jishaku load failed (continuing without it): {e!r}")
+
+            log_info("Connecting to Discord...")
+
+            attempt = 0
+            delay = 1.0
+            while True:
+                try:
+                    # discord.py owns the gateway: it reconnects and resumes sessions
+                    # on its own, this call only returns after a clean close().
+                    await client.start(TOKEN)
+                    if _shutdown_started:
+                        log_info("Discord client closed.")
+                    else:
+                        log_error("Discord client stopped unexpectedly - exiting so Render can restart the service.")
+                        exit_code = 1
+                    return
+
+                except ExtensionLoadError as e:
+                    # A critical part of the bot (its cogs) could not load —
+                    # never pretend to be healthy.
+                    log_error(f"Support failed to start. Reason: {e}")
+                    exit_code = 1
+                    return
+
+                except (discord.LoginFailure, discord.PrivilegedIntentsRequired) as e:
+                    log_error(f"Discord rejected the login: {e!r}")
+                    log_error("Check the TOKEN environment variable in Render and the "
+                              "privileged intents in the Discord Developer Portal.")
+                    log_error("Support failed to start. Reason: invalid Discord credentials or intents.")
+                    exit_code = 1
+                    return
+
+                except discord.HTTPException as e:
+                    if e.status in (401, 403):
+                        log_error(f"Discord API refused the connection (HTTP {e.status}).")
+                        log_error("Check the TOKEN environment variable in Render.")
+                        log_error("Support failed to start. Reason: Discord rejected the configured token.")
+                        exit_code = 1
+                        return
+                    failure = e
+
+                except (discord.GatewayNotFound, aiohttp.ClientError,
+                        asyncio.TimeoutError, OSError) as e:
+                    failure = e
+
+                except Exception as e:
+                    failure = e
+                    log_warning(f"Unexpected error while starting: {e!r}")
+                    traceback.print_exc()
+
+                # --- Recoverable failure: bounded exponential backoff (1→30s) ---
+                if client.is_closed():
+                    log_error("Discord client closed during startup - exiting so Render can restart the service.")
+                    exit_code = 1
+                    return
+
                 attempt += 1
-            except (discord.GatewayNotFound, aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
-                print(f"Connection error while starting bot: {e} — retrying in 30s")
-                await asyncio.sleep(30)
-                attempt += 1
-        raise Exception("Bot failed to start after multiple retries.")
+                if attempt >= MAX_START_ATTEMPTS:
+                    log_error(f"Support failed to start after {MAX_START_ATTEMPTS} attempts.")
+                    log_error(f"Reason: {failure!r}")
+                    exit_code = 1
+                    return
+
+                wait_time = min(delay, 30.0)
+                log_warning(f"Temporary connection failure ({failure!r}) - "
+                            f"retry {attempt}/{MAX_START_ATTEMPTS - 1} in {wait_time:.0f}s")
+                await asyncio.sleep(wait_time)
+                delay *= 2
+        finally:
+            # Also runs on fatal startup errors so the API server and any
+            # background work are stopped before the process exits.
+            await shutdown("process exiting")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        log_info("Interrupted - exiting.")
+    except SystemExit:
+        raise
+    except Exception as e:
+        log_error(f"Support failed to start. Reason: {e!r}")
+        traceback.print_exc()
+        exit_code = 1
+    sys.exit(exit_code)
+

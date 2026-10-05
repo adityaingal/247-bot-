@@ -101,6 +101,13 @@ class General(commands.Cog):
     self._URL_REGEX = r'(?P<url><[^: >]+:\/[^ >]+>|(?:https?|steam):\/\/[^\s<]+[^<.,:;"\'\\]\s])'
     self.color = 0xFF0000
 
+  async def cog_unload(self):
+    # Close the long-lived session so shutdown never leaks it.
+    try:
+      await self.aiohttp.close()
+    except Exception:
+      pass
+
 
   @commands.hybrid_command(
     usage="Avatar <member>",

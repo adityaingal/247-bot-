@@ -328,31 +328,141 @@ On every startup the console prints:
 
 ---
 
-## ✦ Render deployment
+## ✦ Deploy Support Bot on Render
 
-This repository includes a `render.yaml` Blueprint for Render. It creates two web
-services from the same repository:
+This repository includes a `render.yaml` Blueprint for Render. It creates two
+web services from the same repository:
 
-- `support-web-api`: the Discord bot and protected FastAPI dashboard API
+- `support-web-api`: the Discord bot **and** the protected FastAPI dashboard API
+  (one process — every API route reads the live bot client, so the bot cannot be
+  moved to a background worker without rewriting the API)
 - `support-web-dashboard`: the Next.js dashboard
 
-1. Push this folder to a GitHub repository and create a new Render Blueprint.
-2. Select the repository and apply `render.yaml`.
-3. Fill in every `sync: false` secret in Render. In particular, add the Discord
-   bot `TOKEN`, `DASHBOARD_API_KEY`, Discord OAuth credentials, and
-   `NEXTAUTH_SECRET`.
-4. In the Discord Developer Portal, add this redirect URI:
-   `https://support-web-dashboard.onrender.com/api/auth/callback/discord`
+### 1. Connect GitHub repository
 
-The API service listens on Render's `$PORT`, exposes `/health` for Render health
-checks, and does not require the Cloudflare tunnel. The dashboard is already
-configured to call the Render API service.
+Push this folder to a GitHub repository and create a new **Render Blueprint**
+from it (Dashboard → New → Blueprint). Select the repository and apply the
+`render.yaml` in this folder.
+
+### 2. Configure Root Directory
+
+```text
+bot
+```
+
+`render.yaml` already sets `rootDir: bot` for the API service and
+`rootDir: dashboard` for the dashboard service — no manual edit needed.
+
+### 3. Configure Start Command
+
+For the bot service (root directory `bot`):
+
+```bash
+python CodeX.py
+```
+
+Do **not** use `python bot/CodeX.py` — the root directory already points at
+`bot`, so that path would not exist. The health check path is `/health`.
+
+### 4. Add Environment Variables
+
+Secrets are marked `sync: false` in `render.yaml` and must be filled in when
+the Blueprint is applied. Never put a real token in `render.yaml`, `.env`,
+`README.md` or the source code.
+
+| Variable | Required | Description |
+|---|---|---|
+| `TOKEN` | ✅ | Discord bot token. Missing/invalid → the bot logs a clear `ERROR` and exits instead of looping. |
+| `DASHBOARD_API_KEY` | ✅ (for the dashboard) | Shared secret between the bot API and the dashboard |
+| `OWNER_IDS` | optional | Comma-separated Discord user IDs |
+| `brand_name` | optional | Bot display name (`Support`) |
+| `DISCORD_STATUS` / `BOT_ACTIVITY` | optional | Presence shown by the bot |
+| `API_ENABLED` | optional | `true` starts the FastAPI backend (default `true`) |
+| `CORS_ORIGINS` | optional | Extra CORS origins, comma-separated |
+| `TUNNEL_ENABLED` | optional | Keep `false` on Render (Render already gives the service a public URL) |
+| `EMOJI_SYNC` | optional | `true` = upload/patch application emojis on startup |
+| `LAVALINK_HOST` / `LAVALINK_PASSWORD` / `LAVALINK_SECURE` / `LAVALINK_PORT` | optional | Only needed for music |
+| `DASHBOARD`: `NEXTAUTH_SECRET`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `NEXT_PUBLIC_DASHBOARD_API_KEY`, `NEXT_PUBLIC_ADMIN_IDS` | ✅ (dashboard) | Next.js + Discord OAuth2 login |
+
+The API service automatically listens on Render's `$PORT` — no port variable
+needs to be set.
+
+Also add this redirect URI in the **Discord Developer Portal → OAuth2**:
+
+```text
+https://support-web-dashboard.onrender.com/api/auth/callback/discord
+```
+
+### 5. Deploy
+
+After the first deploy, open **Logs**. Expected result:
+
+```text
+========================================
+SUPPORT BOT
+========================================
+INFO  - Starting Support...
+INFO  - Loading configuration...
+INFO  - Loading configuration... done
+INFO  - API server starting on port 10000
+INFO  - Connecting to Discord...
+INFO  - Loading cogs...
+INFO  - Discord connected
+INFO  - Support is online.
+INFO  - Discord connection established.
+```
+
+### Health check
+
+`GET /health` (used by Render, public, no secrets):
+
+```json
+{ "status": "ok", "service": "Support", "discord": "connected" }
+```
+
+While the gateway is temporarily down the endpoint stays HTTP 200 (so Render
+does not restart a working process) but reports honestly:
+
+```json
+{ "status": "degraded", "service": "Support", "discord": "disconnected" }
+```
+
+### Reliability behaviour
+
+| Situation | What happens |
+|---|---|
+| `TOKEN` missing/invalid | `ERROR - TOKEN environment variable is missing.` → process exits; fix the variable and redeploy |
+| Temporary network/DNS/Discord outage at startup | Bounded exponential backoff (1s → 30s, max 7 attempts), then non-zero exit so **Render** restarts the service with its own pacing |
+| Gateway disconnect during normal operation | discord.py reconnect/resume — no code needed; logs show `WARNING - Discord gateway disconnected...` then `INFO  - Discord session resumed successfully.` |
+| One cog fails to load | That cog is skipped and logged (`WARNING - 1 cog(s) failed to load: ...`); the rest of the bot keeps working |
+| Whole cog package fails to load | Fatal `ExtensionLoadError` → clean error log and non-zero exit (the bot never pretends to be healthy) |
+| Command raises an error | Centralised handler in `cogs/events/Errors.py` replies with a clean message; the stack trace stays in the Render logs |
+| Render deploy / stop (SIGTERM) | Graceful shutdown: tasks cancelled, API server stopped, Discord connection closed, exit code 0 |
+| Process crashes | Render detects the exit and restarts the service, which then reconnects to Discord |
+
+There is **no self-ping keep-alive** and no fake activity: uptime comes from the
+Render service staying up plus discord.py's own gateway reconnect logic.
+
+### Uptime expectations (read this)
+
+Code alone cannot guarantee 24/7 uptime. Continuous operation also depends on:
+
+- the Render instance type/plan (a plan that **sleeps** will take the bot offline)
+- Render, Discord, database and external API availability
+- network conditions and correct environment variables
+
+If continuous operation is required, use a Render instance type that never
+sleeps (paid instance types) and keep `healthCheckPath: /health`.
 
 ### Required Render secrets
 
 `TOKEN`, `DASHBOARD_API_KEY`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, and
 `NEXTAUTH_SECRET` must be set as Render environment variables. Never commit a
 `.env` file or a Discord token to the repository.
+
+> **Note:** the bot stores its data in local SQLite files (`bot/db`, `bot/jsondb`).
+> On Render the filesystem is ephemeral — those files are recreated on every
+> deploy/restart unless you attach a Render Disk and point the bot at it.
 
 ## ✦ Deployment
 
