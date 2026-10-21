@@ -76,7 +76,14 @@ class HTTPClient:
             if self._session is None or self._session.closed:
                 timeout = aiohttp.ClientTimeout(total=TOTAL_TIMEOUT,
                                                 connect=CONNECT_TIMEOUT)
-                self._session = aiohttp.ClientSession(timeout=timeout)
+                # Brotli is advertised by default, but the installed `Brotli`
+                # package's Decompressor only accepts a single argument while
+                # aiohttp passes max_length — every br response then blows up
+                # with ClientPayloadError. Stick to gzip/deflate.
+                self._session = aiohttp.ClientSession(
+                    timeout=timeout,
+                    headers={"Accept-Encoding": "gzip, deflate"},
+                )
             return self._session
 
     def register(self, session: Optional[aiohttp.ClientSession]) -> None:

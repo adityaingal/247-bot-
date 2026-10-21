@@ -160,7 +160,18 @@ class SearchResultView(LayoutView):
                 return
 
             track = self.results[index]
-            vc = self.ctx.voice_client or await self.ctx.author.voice.channel.connect(cls=wavelink.Player)
+            vc = self.ctx.voice_client
+            if vc is None:
+                if await self.ctx.cog.wait_for_node() is None:
+                    await interaction.response.send_message(
+                        "The music node isn't ready yet — try again in a few seconds.", ephemeral=True)
+                    return
+                try:
+                    vc = await self.ctx.author.voice.channel.connect(cls=wavelink.Player)
+                except (wavelink.ChannelTimeoutException, wavelink.InvalidNodeException):
+                    await interaction.response.send_message(
+                        "Couldn't connect to voice right now — try again in a few seconds.", ephemeral=True)
+                    return
             vc.ctx = self.ctx
 
             if not vc.playing:
@@ -347,6 +358,20 @@ class Music(commands.Cog):
                 await self.check_inactivity(guild.id) 
             await asyncio.sleep(60) 
 
+    async def wait_for_node(self, timeout: float = 15.0):
+        """Wait until a Lavalink node in the Pool reaches CONNECTED state.
+
+        Public nodes need a moment after startup (and can drop mid-run). Joining
+        before that makes wavelink raise a misleading 30s ChannelTimeoutException
+        because the voice update can never be dispatched to the node.
+        """
+        for _ in range(int(timeout / 0.5)):
+            try:
+                return wavelink.Pool.get_node()
+            except wavelink.InvalidNodeException:
+                await asyncio.sleep(0.5)
+        return None
+
     async def check_inactivity(self, guild_id):
         guild = self.client.get_guild(guild_id)
         if not guild:
@@ -480,7 +505,18 @@ class Music(commands.Cog):
             await ctx.send(view=CV2(f"{WARNING} you need to be in a voice channel to use this command."))
             return
 
-        vc = ctx.voice_client or await ctx.author.voice.channel.connect(cls=wavelink.Player)
+        vc = ctx.voice_client
+        if vc is None:
+            if await self.wait_for_node() is None:
+                await ctx.send(view=CV2(f"{WARNING} The music node isn't ready yet — try again in a few seconds."))
+                return
+            try:
+                vc = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+            except (wavelink.ChannelTimeoutException, wavelink.InvalidNodeException):
+                await ctx.send(view=CV2(
+                    f"{WARNING} Couldn't connect to voice right now — "
+                    "check my Connect + Speak permissions and try again."))
+                return
         vc.ctx = ctx
         
         
@@ -941,11 +977,44 @@ class Music(commands.Cog):
     @ignore_check()
     @commands.cooldown(1, 3, commands.BucketType.user)
     async def join(self, ctx: commands.Context):
-        if ctx.author.voice:
-            await ctx.author.voice.channel.connect(cls=wavelink.Player)
-            await ctx.send(view=CV2("Joined the voice channel."))
-        else:
+        if not ctx.author.voice:
             await ctx.send(view=CV2("You need to join a voice channel first."))
+            return
+
+        target = ctx.author.voice.channel
+        vc = ctx.voice_client
+
+        # Already connected to the channel the user is in — nothing to do.
+        if vc and vc.is_connected() and vc.channel and vc.channel.id == target.id:
+            await ctx.send(view=CV2("I'm already connected to this voice channel."))
+            return
+
+        if await self.wait_for_node() is None:
+            await ctx.send(view=CV2(f"{WARNING} The music node isn't ready yet — try again in a few seconds."))
+            return
+
+        try:
+            if vc and vc.is_connected():
+                # Connected elsewhere in this guild — move instead of reconnecting.
+                await vc.move_to(target)
+                await ctx.send(view=CV2("Moved to your voice channel."))
+            else:
+                await target.connect(cls=wavelink.Player)
+                await ctx.send(view=CV2("Joined the voice channel."))
+        except wavelink.ChannelTimeoutException:
+            await ctx.send(view=CV2(
+                f"{WARNING} Couldn't connect to voice in time (30s). "
+                "Check that I have Connect + Speak in that channel, then try again."))
+            return
+        except wavelink.InvalidNodeException:
+            await ctx.send(view=CV2(f"{WARNING} The music node disconnected — try again shortly."))
+            return
+        except discord.ClientException:
+            # Already connected (race) or move failed — don't crash the command.
+            await ctx.send(view=CV2(
+                f"{WARNING} I'm already connected to a voice channel. "
+                "Use `>disconnect` first, or run `>join` from the channel I'm in."))
+            return
 
     @commands.hybrid_command(name="disconnect", aliases=["dc", "leave"], usage="disconnect", help="Disconnects the bot from the voice channel.")
     @blacklist_check()

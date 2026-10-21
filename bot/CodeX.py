@@ -75,6 +75,82 @@ if not (os.getenv("TOKEN") or "").strip():
     log_error("Support failed to start. Reason: no Discord bot token configured.")
     raise SystemExit(1)
 
+
+def _setup_persistent_db() -> None:
+    """On Render, redirect the relative db/ directory onto a persistent Disk.
+
+    Every cog opens its SQLite files via a relative path like ``db/anti.db``.
+    Render's filesystem is ephemeral: anything written under the checkout is
+    wiped on each deploy/restart (and on free-tier wake-from-sleep). When a
+    Render Disk is mounted, setting RENDER_DISK_PATH to its mount point makes
+    this swap the local ``db`` folder for a symlink onto the disk, so all 36
+    SQLite files survive redeploys. No-op when RENDER_DISK_PATH is unset
+    (local dev, or a plan without disks).
+    """
+    disk = (os.getenv("RENDER_DISK_PATH") or "").strip()
+    if not disk:
+        return
+    import shutil
+
+    target = os.path.join(disk, "db")
+    local = os.path.join(os.getcwd(), "db")
+    try:
+        os.makedirs(target, exist_ok=True)
+    except Exception as e:
+        log_warning(f"Persistent db: could not create {target}: {e!r}")
+        return
+
+    # Already linked to the disk?
+    try:
+        if os.path.islink(local) and os.path.realpath(local) == os.path.realpath(target):
+            return
+    except OSError:
+        pass
+
+    # First boot: seed the disk from any files already in the checkout.
+    try:
+        if os.path.isdir(local) and not os.path.islink(local):
+            for name in os.listdir(local):
+                src = os.path.join(local, name)
+                dst = os.path.join(target, name)
+                if os.path.isfile(src) and not os.path.exists(dst):
+                    shutil.copy2(src, dst)
+    except Exception as e:
+        log_warning(f"Persistent db: seed failed: {e!r}")
+
+    # Swap the ephemeral folder for a symlink onto the disk. Renames the
+    # original aside first and restores it if the symlink fails (e.g. Windows
+    # without Developer Mode), so a failed swap never loses the db/ folder.
+    bak = local + ".__persist_bak"
+    try:
+        if os.path.isdir(local) and not os.path.islink(local):
+            if os.path.exists(bak):
+                shutil.rmtree(bak, ignore_errors=True)
+            os.rename(local, bak)
+        elif os.path.exists(local) and not os.path.islink(local):
+            os.remove(local)
+        os.symlink(target, local, target_is_directory=True)
+    except Exception as e:
+        # Roll the original folder back into place.
+        try:
+            if not os.path.exists(local) and os.path.isdir(bak):
+                os.rename(bak, local)
+        except OSError:
+            pass
+        log_warning(f"Persistent db: could not link {local} -> {target}: {e!r}")
+        return
+
+    # Success: drop the backup copy.
+    try:
+        if os.path.isdir(bak):
+            shutil.rmtree(bak, ignore_errors=True)
+    except OSError:
+        pass
+    log_info(f"Persistent db enabled -> {target}")
+
+
+_setup_persistent_db()
+
 log_info("Loading configuration...")
 
 import aiohttp

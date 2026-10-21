@@ -17,6 +17,7 @@ services:
     name: support-web-api
     runtime: python
     rootDir: bot
+    pythonVersion: "3.11"
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     # Render root directory is "bot", so the entry point is CodeX.py (not bot/CodeX.py)
     startCommand: python CodeX.py
@@ -54,6 +55,19 @@ services:
         sync: false
       - key: CORS_ORIGINS
         value: https://support-web-dashboard.onrender.com
+      # Self-ping keeps the service awake on the free tier (sleep would drop
+      # the Discord gateway). 600s < Render's 15-min idle threshold.
+      - key: KEEPALIVE_ENABLED
+        value: "true"
+      - key: KEEPALIVE_INTERVAL
+        value: "600"
+      - key: KEEPALIVE_URL
+        value: https://support-web-api.onrender.com/health
+      # Only used when a Render Disk is attached (paid plans). Set this to the
+      # disk's mount path so the 36 SQLite files under db/ persist across
+      # deploys. Leave unset on the free tier (db/ resets on each deploy).
+      - key: RENDER_DISK_PATH
+        sync: false
 
   - type: web
     name: support-web-dashboard
@@ -62,6 +76,8 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm run start -- -H 0.0.0.0 -p $PORT
     envVars:
+      - key: NODE_VERSION
+        value: "20"
       - key: NEXT_PUBLIC_API_URL
         value: https://support-web-api.onrender.com/api/v1
       - key: NEXT_PUBLIC_DASHBOARD_API_KEY

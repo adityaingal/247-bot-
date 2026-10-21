@@ -81,6 +81,7 @@ from .commands.Birthday import Birthdays
 from .commands.nitro import Nitro
 from .commands.image import ImageCommands
 from .commands.youtube import Youtube
+from .commands.plans import Plans
 #____________ Events _____________
 
 #from .events.autoblacklist import AutoBlacklist
@@ -261,6 +262,7 @@ async def setup(bot: zyrox):
   await _safe_add(Nitro)
   await _safe_add(ImageCommands)
   await _safe_add(Youtube)
+  await _safe_add(Plans)
 
   await _safe_add(_antinuke)
   await _safe_add(_extra)

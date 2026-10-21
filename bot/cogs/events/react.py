@@ -43,11 +43,17 @@ class React(commands.Cog):
                             STAFF,
                         ]
 
-                    for emoji in emojis:
+                    # Adding several reactions back-to-back hits Discord's
+                    # per-route limit (429 spam in the logs), so pace them.
+                    for index, emoji in enumerate(emojis):
                         try:
                             await message.add_reaction(emoji)
+                        except discord.errors.RateLimited as e:
+                            await asyncio.sleep(e.retry_after + 0.5)
                         except discord.HTTPException:
                             pass  # ignore if emoji is invalid or not accessible
+                        if index != len(emojis) - 1:
+                            await asyncio.sleep(0.75)
 
                 except discord.errors.RateLimited as e:
                     await asyncio.sleep(e.retry_after)

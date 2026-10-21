@@ -21,15 +21,13 @@ class FilterCog(commands.Cog):
         self.bot = bot
         self.active_filters = {}
 
-    async def apply_filter(self, ctx: commands.Context, filter_name: str):
+    async def apply_filter(self, ctx: commands.Context, filter_name: str) -> bool:
         player: Union[wavelink.Player, None] = ctx.voice_client
         if not player or not player.playing:
-            await ctx.send("I'm not playing anything.")
-            return
+            return False
 
         if ctx.author.voice is None or ctx.author.voice.channel != player.channel:
-            await ctx.send("You need to be in the same voice channel as me.")
-            return
+            return False
 
         filters = wavelink.Filters()
 
@@ -61,9 +59,11 @@ class FilterCog(commands.Cog):
         elif filter_name == "channelmix":
             filters.channel_mix.set(left_to_left=0.5, left_to_right=0.5, right_to_left=0.5, right_to_right=0.5)
 
-        await player.set_filters(filters)
+        # seek=True makes Lavalink re-process the current stream so the filter
+        # is audible right away instead of only on the next track/seek.
+        await player.set_filters(filters, seek=True)
         self.active_filters[ctx.guild.id] = filter_name
-        await ctx.send(embed=discord.Embed(description=f"Filter set to **{filter_name}**.", color=discord.Color.green()))
+        return True
 
     @commands.hybrid_group(invoke_without_command=True)
     @blacklist_check()
@@ -79,7 +79,7 @@ class FilterCog(commands.Cog):
     async def enable(self, ctx: commands.Context):
         player: Union[wavelink.Player, None] = ctx.voice_client
         if not player or not player.playing:
-            await ctx.send("I'm not connected to a voice channel.")
+            await ctx.send("I'm not playing anything right now.")
             return
 
         if ctx.author.voice is None or ctx.author.voice.channel != player.channel:
@@ -102,20 +102,34 @@ class FilterCog(commands.Cog):
         class FilterSelect(discord.ui.View):
             @discord.ui.select(placeholder="Choose a filter...", options=filter_options)
             async def select_filter(self, interaction: discord.Interaction, select: discord.ui.Select):
-                await interaction.response.defer()
                 selected_filter = select.values[0].lower()
-                await self.cog.apply_filter(ctx, selected_filter)
-                #await interaction.message.delete()  
-                self.disable_all()  
+                await interaction.response.defer()
+                try:
+                    ok = await self.cog.apply_filter(ctx, selected_filter)
+                except Exception:
+                    ok = False
+                self.disable_all()
+                if ok:
+                    await interaction.message.edit(
+                        content=f"Filter set to **{selected_filter.title()}**.",
+                        embed=None, view=self)
+                else:
+                    await interaction.message.edit(
+                        content="Couldn't apply that filter — make sure I'm playing and you're in my voice channel.",
+                        embed=None, view=self)
 
             @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red)
             async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-                await interaction.message.delete()  
-                self.disable_all()  
+                self.disable_all()
+                try:
+                    await interaction.message.delete()
+                except discord.HTTPException:
+                    pass
+
             def disable_all(self):
                 for child in self.children:
                     child.disabled = True
-                self.stop()  
+                self.stop()
 
         view = FilterSelect()
         view.cog = self
@@ -132,7 +146,7 @@ class FilterCog(commands.Cog):
     async def disable(self, ctx: commands.Context):
         player: Union[wavelink.Player, None] = ctx.voice_client
         if not player or not player.playing:
-            await ctx.send("I'm not connected to a voice channel.")
+            await ctx.send("I'm not playing anything right now.")
             return
 
         if ctx.author.voice is None or ctx.author.voice.channel != player.channel:
@@ -140,7 +154,7 @@ class FilterCog(commands.Cog):
             return
 
         filters = wavelink.Filters()
-        await player.set_filters(filters)
+        await player.set_filters(filters, seek=True)
         self.active_filters.pop(ctx.guild.id, None)
         await ctx.send(embed=discord.Embed(description="Filter disabled.", color=discord.Color.red()))
 

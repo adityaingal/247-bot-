@@ -64,6 +64,13 @@ class zyrox(commands.AutoShardedBot):
         self.status_index = 0
         self.status_list = []
         self._cogs_loaded = False
+        # Bot-wide access gate: privileged server commands run only for the
+        # bot developer, the server owner, or an Administrator.
+        self.add_check(self._access_control)
+
+    async def _access_control(self, ctx: commands.Context) -> bool:
+        from utils.access_control import check_command_access
+        return await check_command_access(ctx)
 
     @staticmethod
     def _discord_status() -> discord.Status:
